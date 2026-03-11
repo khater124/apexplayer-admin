@@ -43,8 +43,8 @@ public class IndexModel : PageModel
         {
             var q = Search.Trim().ToLower();
             all = all.Where(d =>
-                d.Mac.ToLower().Contains(q) ||
-                d.DeviceId.ToLower().Contains(q) ||
+                (d.Mac ?? "").ToLower().Contains(q) ||
+                (d.DeviceId ?? "").ToLower().Contains(q) ||
                 d.Playlists.Any(p =>
                     (p.Username ?? "").ToLower().Contains(q) ||
                     (p.Host ?? "").ToLower().Contains(q))
@@ -90,7 +90,7 @@ public class IndexModel : PageModel
 
             if (existing != null)
             {
-                TempData["DeviceMessage"] = "Device already exists. Updated successfully.";
+                TempData["DeviceMessage"] = "Device updated successfully.";
             }
             else
             {

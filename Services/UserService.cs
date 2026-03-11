@@ -24,6 +24,14 @@ public class UserService
             u.Password == password);
     }
 
+    public string GetAuthVersion()
+    {
+        if (!File.Exists(_usersPath))
+            return "0";
+
+        return File.GetLastWriteTimeUtc(_usersPath).Ticks.ToString();
+    }
+
     private List<StaffUser> LoadUsers()
     {
         if (!File.Exists(_usersPath))

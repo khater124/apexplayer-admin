@@ -36,6 +36,7 @@ public class LoginModel : PageModel
         {
             HttpContext.Session.SetString("StaffLoggedIn", "1");
             HttpContext.Session.SetString("StaffUsername", Username);
+            HttpContext.Session.SetString("StaffAuthVersion", _userService.GetAuthVersion());
             return RedirectToPage("/Index");
         }
         ErrorMessage = "Invalid username or password.";

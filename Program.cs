@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
+using ApexPlayerPanel.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +38,44 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? "";
+    var requiresAuth = path.Equals("/", StringComparison.OrdinalIgnoreCase)
+                       || path.Equals("/Index", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/Index/", StringComparison.OrdinalIgnoreCase)
+                       || path.Equals("/Dashboard", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/Dashboard/", StringComparison.OrdinalIgnoreCase)
+                       || path.Equals("/Settings", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/Settings/", StringComparison.OrdinalIgnoreCase)
+                       || path.Equals("/DeviceDetail", StringComparison.OrdinalIgnoreCase)
+                       || path.StartsWith("/DeviceDetail/", StringComparison.OrdinalIgnoreCase);
+
+    if (!requiresAuth)
+    {
+        await next();
+        return;
+    }
+
+    var isLoggedIn = context.Session.GetString("StaffLoggedIn") == "1";
+    if (!isLoggedIn)
+    {
+        context.Response.Redirect("/Login");
+        return;
+    }
+
+    var userService = context.RequestServices.GetRequiredService<UserService>();
+    var sessionVersion = context.Session.GetString("StaffAuthVersion");
+    var currentVersion = userService.GetAuthVersion();
+    if (string.IsNullOrWhiteSpace(sessionVersion) || !string.Equals(sessionVersion, currentVersion, StringComparison.Ordinal))
+    {
+        context.Session.Clear();
+        context.Response.Redirect("/Login?msg=Session expired. Please sign in again.");
+        return;
+    }
+
+    await next();
+});
 app.UseAuthorization();
 
 app.MapRazorPages();

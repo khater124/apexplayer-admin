@@ -17,8 +17,18 @@ public class DeviceService
     {
         if (!File.Exists(_devicesPath))
             return new List<Device>();
+
         var json = File.ReadAllText(_devicesPath);
-        return JsonSerializer.Deserialize<List<Device>>(json) ?? new List<Device>();
+        var devices = JsonSerializer.Deserialize<List<Device>>(json) ?? new List<Device>();
+
+        foreach (var d in devices)
+        {
+            d.Mac ??= "";
+            d.DeviceId ??= "";
+            d.Playlists ??= new List<DevicePlaylist>();
+        }
+
+        return devices;
     }
 
     public Device? GetByMacAndDeviceId(string mac, string deviceId)

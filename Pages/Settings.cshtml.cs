@@ -51,6 +51,6 @@ public class SettingsModel : PageModel
         }
 
         HttpContext.Session.Clear();
-        return RedirectToPage("/Login");
+        return RedirectToPage("/Login", new { msg = "Credentials updated. Please sign in again on this device." });
     }
 }
