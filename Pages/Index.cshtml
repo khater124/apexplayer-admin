@@ -17,6 +17,10 @@
 {
     <div class="alert-info mb-3">@TempData["DeviceWarning"]</div>
 }
+@if (TempData["DeviceError"] != null)
+{
+    <div class="alert-error mb-3">@TempData["DeviceError"]</div>
+}
 
 <!-- Add Device -->
 <div class="panel-card">
@@ -45,7 +49,7 @@
 <!-- Search + Table -->
 <div class="panel-card">
     <div class="d-flex justify-content-between align-items-center mb-3 search-row-mobile flex-wrap gap-2">
-        <div class="panel-card-title mb-0">All Devices (@Model.TotalCount) @(Model.TotalPages > 1 ? $"(page {Model.Page}/{Model.TotalPages})" : "")</div>
+        <div class="panel-card-title mb-0">All Devices (@Model.TotalCount) @(Model.TotalPages > 1 ? $"(page {Model.CurrentPage}/{Model.TotalPages})" : "")</div>
         <form method="get" class="d-flex gap-2 align-items-center flex-grow-1 flex-md-grow-0">
             <input type="text" name="Search" value="@Model.Search"
                    class="form-control" placeholder="Search MAC, Device ID, username…" style="width:280px; min-width:0;" />
@@ -65,7 +69,7 @@
     else
     {
         <div style="font-size:12px; color:#444; margin-bottom:12px;">
-            Showing @((Model.Page - 1) * Model.PageSize + 1)–@(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount devices
+            Showing @((Model.CurrentPage - 1) * Model.PageSize + 1)–@(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount)) of @Model.TotalCount devices
         </div>
         <div class="table-responsive">
         <table class="dark-table">
@@ -143,7 +147,7 @@
                                 <input type="hidden" name="mac" value="@d.Mac" />
                                 <input type="hidden" name="deviceId" value="@d.DeviceId" />
                                 <input type="hidden" name="Search" value="@Model.Search" />
-                                <input type="hidden" name="Page" value="@Model.Page" />
+                                <input type="hidden" name="Page" value="@Model.CurrentPage" />
                                 @if (d.IsBlocked)
                                 {
                                     <button type="submit" class="btn-unblock-sm me-1">Unblock</button>
@@ -159,7 +163,7 @@
                                 <input type="hidden" name="mac" value="@d.Mac" />
                                 <input type="hidden" name="deviceId" value="@d.DeviceId" />
                                 <input type="hidden" name="Search" value="@Model.Search" />
-                                <input type="hidden" name="Page" value="@Model.Page" />
+                                <input type="hidden" name="Page" value="@Model.CurrentPage" />
                                 <button type="submit" class="btn-danger-sm">Delete</button>
                             </form>
                         </td>
@@ -172,16 +176,16 @@
         @if (Model.TotalPages > 1)
         {
             <div class="d-flex justify-content-between align-items-center mt-3 pt-3" style="border-top:1px solid #222;">
-                <span style="color:#666; font-size:13px;">Showing @((Model.Page - 1) * Model.PageSize + 1) - @(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount</span>
+                <span style="color:#666; font-size:13px;">Showing @((Model.CurrentPage - 1) * Model.PageSize + 1) - @(Math.Min(Model.CurrentPage * Model.PageSize, Model.TotalCount)) of @Model.TotalCount</span>
                 <div class="d-flex gap-2">
-                    @if (Model.Page > 1)
+                    @if (Model.CurrentPage > 1)
                     {
-                        <a asp-page="/Index" asp-route-Search="@Model.Search" asp-route-Page="@(Model.Page - 1)" class="btn-ghost" style="padding:6px 14px; font-size:13px;">← Prev</a>
+                        <a asp-page="/Index" asp-route-Search="@Model.Search" asp-route-Page="@(Model.CurrentPage - 1)" class="btn-ghost" style="padding:6px 14px; font-size:13px;">← Prev</a>
                     }
-                    <span style="color:#888; font-size:13px; padding:6px 12px;">Page @Model.Page of @Model.TotalPages</span>
-                    @if (Model.Page < Model.TotalPages)
+                    <span style="color:#888; font-size:13px; padding:6px 12px;">Page @Model.CurrentPage of @Model.TotalPages</span>
+                    @if (Model.CurrentPage < Model.TotalPages)
                     {
-                        <a asp-page="/Index" asp-route-Search="@Model.Search" asp-route-Page="@(Model.Page + 1)" class="btn-ghost" style="padding:6px 14px; font-size:13px;">Next →</a>
+                        <a asp-page="/Index" asp-route-Search="@Model.Search" asp-route-Page="@(Model.CurrentPage + 1)" class="btn-ghost" style="padding:6px 14px; font-size:13px;">Next →</a>
                     }
                 </div>
             </div>

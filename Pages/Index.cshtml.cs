@@ -24,8 +24,8 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Search { get; set; } = "";
 
-    [BindProperty(SupportsGet = true)]
-    public int Page { get; set; } = 1;
+    [BindProperty(SupportsGet = true, Name = "Page")]
+    public int CurrentPage { get; set; } = 1;
 
     public IndexModel(DeviceService deviceService)
     {
@@ -37,24 +37,36 @@ public class IndexModel : PageModel
         if (HttpContext.Session.GetString("StaffLoggedIn") != "1")
             return RedirectToPage("/Login");
 
-        var all = _deviceService.GetAll();
-
-        if (!string.IsNullOrWhiteSpace(Search))
+        try
         {
-            var q = Search.Trim().ToLower();
-            all = all.Where(d =>
-                (d.Mac ?? "").ToLower().Contains(q) ||
-                (d.DeviceId ?? "").ToLower().Contains(q) ||
-                d.Playlists.Any(p =>
-                    (p.Username ?? "").ToLower().Contains(q) ||
-                    (p.Host ?? "").ToLower().Contains(q))
-            ).ToList();
+            var all = _deviceService.GetAll();
+
+            if (!string.IsNullOrWhiteSpace(Search))
+            {
+                var q = Search.Trim().ToLower();
+                all = all.Where(d =>
+                    (d?.Mac ?? "").ToLower().Contains(q) ||
+                    (d?.DeviceId ?? "").ToLower().Contains(q) ||
+                    (d?.Playlists ?? new List<DevicePlaylist>()).Any(p =>
+                        (p.Username ?? "").ToLower().Contains(q) ||
+                        (p.Host ?? "").ToLower().Contains(q))
+                ).ToList();
+            }
+
+            all = all.Where(d => d != null).ToList();
+            TotalCount = all.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)TotalCount / PageSize));
+            PageNumber = Math.Clamp(CurrentPage, 1, totalPages);
+            Devices = all.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
+        }
+        catch (Exception)
+        {
+            TempData["DeviceError"] = "Could not load device list right now. Please refresh and try again.";
+            Devices = new List<Device>();
+            TotalCount = 0;
+            PageNumber = 1;
         }
 
-        TotalCount = all.Count;
-        int totalPages = Math.Max(1, (int)Math.Ceiling((double)TotalCount / PageSize));
-        PageNumber = Math.Clamp(Page, 1, totalPages);
-        Devices = all.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
         return base.Page();
     }
 
@@ -102,14 +114,13 @@ public class IndexModel : PageModel
                 TempData["DeviceWarning"] = "Note: This MAC address is also registered with another Device ID.";
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            ModelState.AddModelError(string.Empty, "Could not save device. " + ex.Message);
-            var all = _deviceService.GetAll();
-            TotalCount = all.Count;
+            TempData["DeviceError"] = "Could not save this device. Please verify MAC/Device ID and try again.";
+            TotalCount = 0;
             PageNumber = 1;
-            Devices = all.Take(PageSize).ToList();
-            return Page();
+            Devices = new List<Device>();
+            return RedirectToPage(new { Search, Page = 1 });
         }
 
         return RedirectToPage(new { Search, Page = 1 });
@@ -121,7 +132,7 @@ public class IndexModel : PageModel
             return RedirectToPage("/Login");
 
         _deviceService.ToggleBlock(mac, deviceId);
-        return RedirectToPage(new { Search, Page });
+        return RedirectToPage(new { Search, Page = CurrentPage });
     }
 
     public IActionResult OnPostDelete(string mac, string deviceId)
@@ -130,7 +141,7 @@ public class IndexModel : PageModel
             return RedirectToPage("/Login");
 
         _deviceService.Delete(mac, deviceId);
-        return RedirectToPage(new { Search, Page });
+        return RedirectToPage(new { Search, Page = CurrentPage });
     }
 
 }
