@@ -47,7 +47,16 @@ Railway gives **$5 free credits/month** – no credit card needed to start.
 
 ---
 
-## Step 3: Add Persistent Storage (Important)
+## Step 3: Set Production Mode (Optional)
+
+In **Variables** tab, add:
+- `ASPNETCORE_ENVIRONMENT` = `Production`
+
+*(The Dockerfile sets this by default; add only if you see development error pages.)*
+
+---
+
+## Step 4: Add Persistent Storage (Important)
 
 1. In your Railway project, click your **service**
 2. Go to **Variables** tab
@@ -60,7 +69,7 @@ This keeps your users and devices data when you redeploy.
 
 ---
 
-## Step 4: Generate Domain
+## Step 5: Generate Domain
 
 1. Click your service
 2. Go to **Settings** tab
@@ -71,7 +80,7 @@ This keeps your users and devices data when you redeploy.
 
 ---
 
-## Step 5: First Login
+## Step 6: First Login
 
 - **Username:** `admin`
 - **Password:** `admin123`

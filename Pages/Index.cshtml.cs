@@ -73,12 +73,44 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        _deviceService.AddOrUpdate(new Device
+        try
         {
-            Mac = Mac,
-            DeviceId = DeviceId,
-            Playlists = new List<DevicePlaylist>()
-        });
+            var existing = _deviceService.GetByMacAndDeviceId(Mac, DeviceId);
+            var macUsedElsewhere = _deviceService.GetAll()
+                .Any(d => string.Equals(d.Mac, Mac, StringComparison.OrdinalIgnoreCase) &&
+                         !string.Equals(d.DeviceId, DeviceId, StringComparison.OrdinalIgnoreCase));
+
+            var deviceToSave = new Device
+            {
+                Mac = Mac,
+                DeviceId = DeviceId,
+                Playlists = existing?.Playlists ?? new List<DevicePlaylist>()
+            };
+            _deviceService.AddOrUpdate(deviceToSave);
+
+            if (existing != null)
+            {
+                TempData["DeviceMessage"] = "Device already exists. Updated successfully.";
+            }
+            else
+            {
+                TempData["DeviceMessage"] = "Device added successfully.";
+            }
+
+            if (macUsedElsewhere)
+            {
+                TempData["DeviceWarning"] = "Note: This MAC address is also registered with another Device ID.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ModelState.AddModelError(string.Empty, "Could not save device. " + ex.Message);
+            var all = _deviceService.GetAll();
+            TotalCount = all.Count;
+            PageNumber = 1;
+            Devices = all.Take(PageSize).ToList();
+            return Page();
+        }
 
         return RedirectToPage(new { Search, Page = 1 });
     }

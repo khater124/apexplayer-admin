@@ -18,8 +18,8 @@ RUN mkdir -p /app/Data
 # Copy published app
 COPY --from=build /app/publish .
 
-# Fly.io uses PORT env var
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
 
 EXPOSE 8080
 

@@ -9,10 +9,19 @@
     <p>Manage registered devices and their assigned playlists.</p>
 </div>
 
+@if (TempData["DeviceMessage"] != null)
+{
+    <div class="alert-success mb-3">@TempData["DeviceMessage"]</div>
+}
+@if (TempData["DeviceWarning"] != null)
+{
+    <div class="alert-info mb-3">@TempData["DeviceWarning"]</div>
+}
+
 <!-- Add Device -->
 <div class="panel-card">
     <div class="panel-card-title">Add / Update Device</div>
-    <form method="post" asp-page-handler="Add">
+    <form method="post" asp-page-handler="Add" class="add-device-form">
         <div class="row g-3 align-items-end">
             <div class="col-md-4">
                 <label asp-for="Mac" class="form-label">MAC Address</label>
@@ -35,11 +44,11 @@
 
 <!-- Search + Table -->
 <div class="panel-card">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 search-row-mobile flex-wrap gap-2">
         <div class="panel-card-title mb-0">All Devices (@Model.TotalCount) @(Model.TotalPages > 1 ? $"(page {Model.Page}/{Model.TotalPages})" : "")</div>
-        <form method="get" class="d-flex gap-2 align-items-center">
+        <form method="get" class="d-flex gap-2 align-items-center flex-grow-1 flex-md-grow-0">
             <input type="text" name="Search" value="@Model.Search"
-                   class="form-control" placeholder="Search MAC, Device ID, username…" style="width:280px;" />
+                   class="form-control" placeholder="Search MAC, Device ID, username…" style="width:280px; min-width:0;" />
             <input type="hidden" name="Page" value="1" />
             <button class="btn-ghost" type="submit">Search</button>
             @if (!string.IsNullOrWhiteSpace(Model.Search))
@@ -58,6 +67,7 @@
         <div style="font-size:12px; color:#444; margin-bottom:12px;">
             Showing @((Model.Page - 1) * Model.PageSize + 1)–@(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount devices
         </div>
+        <div class="table-responsive">
         <table class="dark-table">
             <thead>
                 <tr>
@@ -125,7 +135,7 @@
                                 <span class="badge-count">@d.Playlists.Count</span>
                             }
                         </td>
-                        <td style="text-align:right; white-space:nowrap;">
+                        <td style="text-align:right; white-space:nowrap;" class="device-actions">
                             <a asp-page="/DeviceDetail" asp-route-mac="@d.Mac" asp-route-deviceId="@d.DeviceId"
                                class="btn-primary-sm me-1">Manage</a>
 
@@ -157,6 +167,7 @@
                 }
             </tbody>
         </table>
+        </div>
 
         @if (Model.TotalPages > 1)
         {
