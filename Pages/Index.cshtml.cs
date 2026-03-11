@@ -25,7 +25,7 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Search { get; set; } = "";
 
-    [BindProperty(SupportsGet = true, Name = "Page")]
+    [BindProperty(SupportsGet = true, Name = "p")]
     public int CurrentPage { get; set; } = 1;
 
     public IndexModel(DeviceService deviceService, ILogger<IndexModel> logger)
@@ -129,10 +129,10 @@ public class IndexModel : PageModel
             TotalCount = 0;
             PageNumber = 1;
             Devices = new List<Device>();
-            return RedirectToPage(new { Search, Page = 1 });
+            return RedirectToPage(new { Search, p = 1 });
         }
 
-        return RedirectToPage(new { Search, Page = 1 });
+        return RedirectToPage(new { Search, p = 1 });
     }
 
     public IActionResult OnPostToggleBlock(string mac, string deviceId)
@@ -141,7 +141,7 @@ public class IndexModel : PageModel
             return RedirectToPage("/Login");
 
         _deviceService.ToggleBlock(mac, deviceId);
-        return RedirectToPage(new { Search, Page = CurrentPage });
+        return RedirectToPage(new { Search, p = CurrentPage });
     }
 
     public IActionResult OnPostDelete(string mac, string deviceId)
@@ -150,7 +150,7 @@ public class IndexModel : PageModel
             return RedirectToPage("/Login");
 
         _deviceService.Delete(mac, deviceId);
-        return RedirectToPage(new { Search, Page = CurrentPage });
+        return RedirectToPage(new { Search, p = CurrentPage });
     }
 
 }
