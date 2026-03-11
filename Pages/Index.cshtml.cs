@@ -8,6 +8,7 @@ namespace ApexPlayerPanel.Pages;
 public class IndexModel : PageModel
 {
     private readonly DeviceService _deviceService;
+    private readonly ILogger<IndexModel> _logger;
 
     public List<Device> Devices { get; set; } = new();
     public int TotalCount { get; set; }
@@ -27,9 +28,10 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true, Name = "Page")]
     public int CurrentPage { get; set; } = 1;
 
-    public IndexModel(DeviceService deviceService)
+    public IndexModel(DeviceService deviceService, ILogger<IndexModel> logger)
     {
         _deviceService = deviceService;
+        _logger = logger;
     }
 
     public IActionResult OnGet()
@@ -59,9 +61,10 @@ public class IndexModel : PageModel
             PageNumber = Math.Clamp(CurrentPage, 1, totalPages);
             Devices = all.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            TempData["DeviceError"] = "Could not load device list right now. Please refresh and try again.";
+            _logger.LogError(ex, "Failed to load device list. TraceId: {TraceId}", HttpContext.TraceIdentifier);
+            TempData["DeviceError"] = $"Could not load device list right now. Ref: {HttpContext.TraceIdentifier}";
             Devices = new List<Device>();
             TotalCount = 0;
             PageNumber = 1;
@@ -114,9 +117,15 @@ public class IndexModel : PageModel
                 TempData["DeviceWarning"] = "Note: This MAC address is also registered with another Device ID.";
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            TempData["DeviceError"] = "Could not save this device. Please verify MAC/Device ID and try again.";
+            _logger.LogError(
+                ex,
+                "Failed to add/update device. Mac: {Mac}, DeviceId: {DeviceId}, TraceId: {TraceId}",
+                Mac,
+                DeviceId,
+                HttpContext.TraceIdentifier);
+            TempData["DeviceError"] = $"Could not save this device. Ref: {HttpContext.TraceIdentifier}";
             TotalCount = 0;
             PageNumber = 1;
             Devices = new List<Device>();

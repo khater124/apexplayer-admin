@@ -6,29 +6,39 @@ namespace ApexPlayerPanel.Services;
 public class DeviceService
 {
     private readonly string _devicesPath;
+    private readonly ILogger<DeviceService> _logger;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public DeviceService(IWebHostEnvironment env)
+    public DeviceService(IWebHostEnvironment env, ILogger<DeviceService> logger)
     {
         _devicesPath = Path.Combine(env.ContentRootPath, "Data", "devices.json");
+        _logger = logger;
     }
 
     public List<Device> GetAll()
     {
-        if (!File.Exists(_devicesPath))
-            return new List<Device>();
-
-        var json = File.ReadAllText(_devicesPath);
-        var devices = JsonSerializer.Deserialize<List<Device>>(json) ?? new List<Device>();
-
-        foreach (var d in devices)
+        try
         {
-            d.Mac ??= "";
-            d.DeviceId ??= "";
-            d.Playlists ??= new List<DevicePlaylist>();
-        }
+            if (!File.Exists(_devicesPath))
+                return new List<Device>();
 
-        return devices;
+            var json = File.ReadAllText(_devicesPath);
+            var devices = JsonSerializer.Deserialize<List<Device>>(json) ?? new List<Device>();
+
+            foreach (var d in devices)
+            {
+                d.Mac ??= "";
+                d.DeviceId ??= "";
+                d.Playlists ??= new List<DevicePlaylist>();
+            }
+
+            return devices;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to read/parse devices file at {DevicesPath}", _devicesPath);
+            return new List<Device>();
+        }
     }
 
     public Device? GetByMacAndDeviceId(string mac, string deviceId)
@@ -40,7 +50,15 @@ public class DeviceService
 
     public void SaveAll(List<Device> devices)
     {
-        File.WriteAllText(_devicesPath, JsonSerializer.Serialize(devices, JsonOptions));
+        try
+        {
+            File.WriteAllText(_devicesPath, JsonSerializer.Serialize(devices, JsonOptions));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save devices file at {DevicesPath}", _devicesPath);
+            throw;
+        }
     }
 
     // Called by the API every time a device checks in

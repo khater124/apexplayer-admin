@@ -33,7 +33,26 @@ app.UseForwardedHeaders();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(context =>
+        {
+            var loggerFactory = context.RequestServices.GetRequiredService<ILoggerFactory>();
+            var logger = loggerFactory.CreateLogger("GlobalException");
+            var exFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+            if (exFeature?.Error != null)
+            {
+                logger.LogError(
+                    exFeature.Error,
+                    "Unhandled exception on path {Path}. TraceId: {TraceId}",
+                    exFeature.Path,
+                    context.TraceIdentifier);
+            }
+
+            context.Response.Redirect("/Error");
+            return Task.CompletedTask;
+        });
+    });
 }
 app.UseStaticFiles();
 app.UseRouting();
