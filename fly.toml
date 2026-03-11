@@ -1,0 +1,28 @@
+# Fly.io config for ApexPlayerPanel
+# Deploy: fly deploy (from ApexPlayerPanel folder)
+
+# App name - change this or let 'fly launch' prompt you
+app = "apexplayer-admin"
+
+[build]
+
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Persistent storage for users & devices data
+[[mounts]]
+  source = "apexplayer_data"
+  destination = "/app/Data"

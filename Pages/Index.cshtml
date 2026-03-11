@@ -1,0 +1,216 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Devices";
+}
+
+<div class="page-header">
+    <h1>Devices</h1>
+    <p>Manage registered devices and their assigned playlists.</p>
+</div>
+
+<!-- Add Device -->
+<div class="panel-card">
+    <div class="panel-card-title">Add / Update Device</div>
+    <form method="post" asp-page-handler="Add">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label asp-for="Mac" class="form-label">MAC Address</label>
+                <input asp-for="Mac" class="form-control" placeholder="AA:BB:CC:DD:EE:FF" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="DeviceId" class="form-label">Device ID</label>
+                <input asp-for="DeviceId" class="form-control" placeholder="6-digit ID" />
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn-gold" style="height:42px; width:100%;">Add / Update</button>
+            </div>
+        </div>
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert-error mt-3">Please fill in all required fields.</div>
+        }
+    </form>
+</div>
+
+<!-- Search + Table -->
+<div class="panel-card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="panel-card-title mb-0">All Devices (@Model.TotalCount) @(Model.TotalPages > 1 ? $"(page {Model.Page}/{Model.TotalPages})" : "")</div>
+        <form method="get" class="d-flex gap-2 align-items-center">
+            <input type="text" name="Search" value="@Model.Search"
+                   class="form-control" placeholder="Search MAC, Device ID, username…" style="width:280px;" />
+            <input type="hidden" name="Page" value="1" />
+            <button class="btn-ghost" type="submit">Search</button>
+            @if (!string.IsNullOrWhiteSpace(Model.Search))
+            {
+                <a asp-page="/Index" class="btn-ghost" style="color:#e74c3c; border-color:#e74c3c44;">Clear</a>
+            }
+        </form>
+    </div>
+
+    @if (Model.TotalCount == 0)
+    {
+        <div class="empty-state">No devices found.</div>
+    }
+    else
+    {
+        <div style="font-size:12px; color:#444; margin-bottom:12px;">
+            Showing @((Model.Page - 1) * Model.PageSize + 1)–@(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount devices
+        </div>
+        <table class="dark-table">
+            <thead>
+                <tr>
+                    <th>MAC Address</th>
+                    <th>Device ID</th>
+                    <th>Expiry</th>
+                    <th>Last Seen</th>
+                    <th>Playlists</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in Model.Devices)
+                {
+                    <tr>
+                        <td>
+                            <span class="mac-code">@d.Mac</span>
+                            @if (d.IsBlocked)
+                            {
+                                <span class="status-badge blocked ms-2">Blocked</span>
+                            }
+                            else if (d.IsExpired)
+                            {
+                                <span class="status-badge expired ms-2">Expired</span>
+                            }
+                        </td>
+                        <td style="color:#aaa;">@d.DeviceId</td>
+                        <td>
+                            @if (!d.ExpiryDate.HasValue)
+                            {
+                                <span class="expiry-unlimited">∞ Unlimited</span>
+                            }
+                            else if (d.IsExpired)
+                            {
+                                <span class="expiry-expired">Expired @d.ExpiryDate.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
+                            }
+                            else
+                            {
+                                var daysLeft = (int)(d.ExpiryDate.Value - DateTime.UtcNow).TotalDays;
+                                <span class="@(daysLeft <= 3 ? "expiry-soon" : "expiry-ok")">
+                                    @d.ExpiryDate.Value.ToLocalTime().ToString("MMM dd, yyyy")
+                                    <small style="opacity:.7;">(@daysLeft d)</small>
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            @if (d.LastSeen.HasValue)
+                            {
+                                var ago = DateTime.UtcNow - d.LastSeen.Value;
+                                var agoStr = ago.TotalMinutes < 2   ? "Just now" :
+                                             ago.TotalMinutes < 60  ? $"{(int)ago.TotalMinutes}m ago" :
+                                             ago.TotalHours < 24    ? $"{(int)ago.TotalHours}h ago" :
+                                                                       $"{(int)ago.TotalDays}d ago";
+                                <span style="color:#666; font-size:13px;">@agoStr</span>
+                            }
+                            else { <span class="badge-none">Never</span> }
+                        </td>
+                        <td>
+                            @if (d.Playlists.Count == 0)
+                            {
+                                <span class="badge-none">None</span>
+                            }
+                            else
+                            {
+                                <span class="badge-count">@d.Playlists.Count</span>
+                            }
+                        </td>
+                        <td style="text-align:right; white-space:nowrap;">
+                            <a asp-page="/DeviceDetail" asp-route-mac="@d.Mac" asp-route-deviceId="@d.DeviceId"
+                               class="btn-primary-sm me-1">Manage</a>
+
+                            <form method="post" asp-page-handler="ToggleBlock" class="d-inline">
+                                <input type="hidden" name="mac" value="@d.Mac" />
+                                <input type="hidden" name="deviceId" value="@d.DeviceId" />
+                                <input type="hidden" name="Search" value="@Model.Search" />
+                                <input type="hidden" name="Page" value="@Model.Page" />
+                                @if (d.IsBlocked)
+                                {
+                                    <button type="submit" class="btn-unblock-sm me-1">Unblock</button>
+                                }
+                                else
+                                {
+                                    <button type="submit" class="btn-block-sm me-1">Block</button>
+                                }
+                            </form>
+
+                            <form method="post" asp-page-handler="Delete" class="d-inline"
+                                  onsubmit="return confirm('Delete device @d.Mac?')">
+                                <input type="hidden" name="mac" value="@d.Mac" />
+                                <input type="hidden" name="deviceId" value="@d.DeviceId" />
+                                <input type="hidden" name="Search" value="@Model.Search" />
+                                <input type="hidden" name="Page" value="@Model.Page" />
+                                <button type="submit" class="btn-danger-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-3" style="border-top:1px solid #222;">
+                <span style="color:#666; font-size:13px;">Showing @((Model.Page - 1) * Model.PageSize + 1) - @(Math.Min(Model.Page * Model.PageSize, Model.TotalCount)) of @Model.TotalCount</span>
+                <div class="d-flex gap-2">
+                    @if (Model.Page > 1)
+                    {
+                        <a asp-page="/Index" asp-route-Search="@Model.Search" asp-route-Page="@(Model.Page - 1)" class="btn-ghost" style="padding:6px 14px; font-size:13px;">← Prev</a>
+                    }
+                    <span style="color:#888; font-size:13px; padding:6px 12px;">Page @Model.Page of @Model.TotalPages</span>
+                    @if (Model.Page < Model.TotalPages)
+                    {
+                        <a asp-page="/Index" asp-route-Search="@Model.Search" asp-route-Page="@(Model.Page + 1)" class="btn-ghost" style="padding:6px 14px; font-size:13px;">Next →</a>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    @if (Model.TotalPages > 1)
+    {
+        <div class="d-flex align-items-center justify-content-between mt-4" style="border-top:1px solid #1e1e1e; padding-top:16px;">
+            <div style="font-size:12px; color:#555;">
+                Showing @((Model.PageNumber - 1) * Model.PageSize + 1)–@(Math.Min(Model.PageNumber * Model.PageSize, Model.TotalCount)) of @Model.TotalCount devices
+            </div>
+            <div class="d-flex gap-2">
+                @if (Model.PageNumber > 1)
+                {
+                    <a asp-page="/Index" asp-route-page="@(Model.PageNumber - 1)" asp-route-search="@Model.Search"
+                       class="btn-ghost" style="padding:5px 14px; font-size:13px;">← Prev</a>
+                }
+                @for (int i = 1; i <= Model.TotalPages; i++)
+                {
+                    if (i == Model.PageNumber)
+                    {
+                        <span style="padding:5px 14px; font-size:13px; background:rgba(255,215,0,.12); color:#FFD700; border:1px solid rgba(255,215,0,.25); border-radius:8px;">@i</span>
+                    }
+                    else if (i == 1 || i == Model.TotalPages || Math.Abs(i - Model.PageNumber) <= 1)
+                    {
+                        <a asp-page="/Index" asp-route-page="@i" asp-route-search="@Model.Search"
+                           class="btn-ghost" style="padding:5px 14px; font-size:13px;">@i</a>
+                    }
+                    else if (Math.Abs(i - Model.PageNumber) == 2)
+                    {
+                        <span style="color:#444; padding:5px 4px;">…</span>
+                    }
+                }
+                @if (Model.PageNumber < Model.TotalPages)
+                {
+                    <a asp-page="/Index" asp-route-page="@(Model.PageNumber + 1)" asp-route-search="@Model.Search"
+                       class="btn-ghost" style="padding:5px 14px; font-size:13px;">Next →</a>
+                }
+            </div>
+        </div>
+    }
+</div>

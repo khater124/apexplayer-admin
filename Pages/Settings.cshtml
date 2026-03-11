@@ -1,0 +1,54 @@
+@page
+@model ApexPlayerPanel.Pages.SettingsModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="page-header">
+    <h1>Settings</h1>
+    <p>Change your admin username and password.</p>
+</div>
+
+<div class="panel-card" style="max-width:480px;">
+    <div class="panel-card-title">Change Credentials</div>
+
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Current Username</label>
+            <input asp-for="CurrentUsername" class="form-control" placeholder="Your current username" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Current Password</label>
+            <input asp-for="CurrentPassword" type="password" class="form-control" placeholder="Your current password" />
+        </div>
+
+        <hr class="section-divider" />
+
+        <div class="mb-3">
+            <label class="form-label">New Username</label>
+            <input asp-for="NewUsername" class="form-control" placeholder="New username" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">New Password</label>
+            <input asp-for="NewPassword" type="password" class="form-control" placeholder="New password" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Confirm New Password</label>
+            <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Repeat new password" />
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="alert-error mb-3">@Model.ErrorMessage</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+        {
+            <div class="alert-dark mb-3" style="color:#2ed573; border-color:rgba(46,213,115,.3);">@Model.SuccessMessage</div>
+        }
+
+        <button type="submit" class="btn-gold" style="height:42px; width:100%;">Save Changes</button>
+        <div style="font-size:11px; color:#444; margin-top:10px; text-align:center;">
+            You will be logged out after saving so you can log in with the new credentials.
+        </div>
+    </form>
+</div>

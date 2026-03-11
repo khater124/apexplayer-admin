@@ -1,0 +1,362 @@
+@page
+@model ApexPlayerPanel.Pages.DeviceDetailModel
+@{
+    ViewData["Title"] = "Device - " + Model.Device?.Mac;
+}
+
+<a asp-page="/Index" class="back-link">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Devices
+</a>
+
+@if (Model.Device == null)
+{
+    <div class="alert-error">Device not found.</div>
+    return;
+}
+
+<!-- Device Header -->
+<div class="device-header">
+    <div class="device-icon" style="@(Model.Device.IsBlocked ? "background:rgba(231,76,60,.12); color:#e74c3c;" : Model.Device.IsExpired ? "background:rgba(255,140,0,.1); color:#ff8c00;" : "")">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    </div>
+    <div class="device-header-info" style="flex:1;">
+        <h2>
+            <span class="mac-code">@Model.Device.Mac</span>
+            @if (Model.Device.IsBlocked)
+            {
+                <span class="status-badge blocked ms-2">BLOCKED</span>
+            }
+            else if (Model.Device.IsExpired)
+            {
+                <span class="status-badge expired ms-2">EXPIRED</span>
+            }
+        </h2>
+        <span style="color:#555; font-size:12px;">Device ID: @Model.Device.DeviceId</span>
+        @if (Model.Device.LastSeen.HasValue)
+        {
+            var ago = DateTime.UtcNow - Model.Device.LastSeen.Value;
+            var s = ago.TotalMinutes < 2 ? "Just now" :
+                    ago.TotalMinutes < 60 ? $"{(int)ago.TotalMinutes}m ago" :
+                    ago.TotalHours < 24 ? $"{(int)ago.TotalHours}h ago" : $"{(int)ago.TotalDays}d ago";
+            <span style="color:#444; font-size:11px; margin-left:12px;">Last seen: @s</span>
+        }
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" asp-page-handler="ToggleBlock">
+            <input type="hidden" asp-for="Mac" />
+            <input type="hidden" asp-for="DeviceId" />
+            @if (Model.Device.IsBlocked)
+            {
+                <button type="submit" class="btn-unblock-sm">Unblock</button>
+            }
+            else
+            {
+                <button type="submit" class="btn-block-sm" onclick="return confirm('Block this device?')">Block</button>
+            }
+        </form>
+    </div>
+</div>
+
+<!-- Expiry / Renewal -->
+<div class="panel-card" style="margin-bottom:20px;">
+    <div class="panel-card-title">Subscription</div>
+    <div class="d-flex align-items-center gap-4 flex-wrap">
+        <div>
+            <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Status</div>
+            @if (Model.Device.IsExpired)
+            {
+                <span class="expiry-expired" style="font-size:14px;">Expired</span>
+            }
+            else if (!Model.Device.ExpiryDate.HasValue)
+            {
+                <span class="expiry-unlimited" style="font-size:14px;">∞ Unlimited</span>
+            }
+            else
+            {
+                var daysLeft = (int)(Model.Device.ExpiryDate.Value - DateTime.UtcNow).TotalDays;
+                <span class="@(daysLeft <= 3 ? "expiry-soon" : "expiry-ok")" style="font-size:14px;">Active — @daysLeft days left</span>
+            }
+        </div>
+        @if (Model.Device.ExpiryDate.HasValue)
+        {
+            <div>
+                <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Expires On</div>
+                <span style="color:#ccc; font-size:14px;">@Model.Device.ExpiryDate.Value.ToLocalTime().ToString("MMMM dd, yyyy")</span>
+            </div>
+        }
+        @if (Model.Device.TrialStartDate.HasValue)
+        {
+            <div>
+                <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Trial Started</div>
+                <span style="color:#555; font-size:13px;">@Model.Device.TrialStartDate.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
+            </div>
+        }
+        <div class="ms-auto d-flex gap-2">
+            <form method="post" asp-page-handler="Renew" class="d-inline">
+                <input type="hidden" asp-for="Mac" />
+                <input type="hidden" asp-for="DeviceId" />
+                <input type="hidden" name="unlimited" value="false" />
+                <button type="submit" class="btn-gold" style="padding:7px 16px; font-size:13px;"
+                        onclick="return confirm('Renew for 1 year?')">Renew 1 Year</button>
+            </form>
+            <form method="post" asp-page-handler="Renew" class="d-inline">
+                <input type="hidden" asp-for="Mac" />
+                <input type="hidden" asp-for="DeviceId" />
+                <input type="hidden" name="unlimited" value="true" />
+                <button type="submit" class="btn-ghost" style="padding:7px 16px; font-size:13px;"
+                        onclick="return confirm('Set to unlimited access?')">Set Unlimited</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Expiry & Subscription -->
+<div class="panel-card">
+    <div class="panel-card-title">Subscription</div>
+    <div class="d-flex align-items-center gap-4 flex-wrap">
+        <div>
+            <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Status</div>
+            @if (Model.Device.IsBlocked)
+            {
+                <span class="status-badge blocked">Blocked</span>
+            }
+            else if (Model.Device.IsExpired)
+            {
+                <span class="status-badge expired">Expired</span>
+            }
+            else
+            {
+                <span class="status-badge active">Active</span>
+            }
+        </div>
+        <div>
+            <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Expiry Date</div>
+            @if (!Model.Device.ExpiryDate.HasValue)
+            {
+                <span class="expiry-unlimited">∞ Unlimited</span>
+            }
+            else if (Model.Device.IsExpired)
+            {
+                <span class="expiry-expired">Expired — @Model.Device.ExpiryDate.Value.ToLocalTime().ToString("MMM dd, yyyy")</span>
+            }
+            else
+            {
+                var daysLeft = (int)(Model.Device.ExpiryDate.Value - DateTime.UtcNow).TotalDays;
+                <span class="@(daysLeft <= 3 ? "expiry-soon" : "expiry-ok")">
+                    @Model.Device.ExpiryDate.Value.ToLocalTime().ToString("MMM dd, yyyy")
+                    <small style="opacity:.7;">(@daysLeft days left)</small>
+                </span>
+            }
+        </div>
+        <div>
+            <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Trial Started</div>
+            <span style="color:#aaa; font-size:13px;">
+                @(Model.Device.TrialStartDate.HasValue ? Model.Device.TrialStartDate.Value.ToLocalTime().ToString("MMM dd, yyyy") : "—")
+            </span>
+        </div>
+        <div>
+            <div style="font-size:11px; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Last Seen</div>
+            @if (Model.Device.LastSeen.HasValue)
+            {
+                var ago = DateTime.UtcNow - Model.Device.LastSeen.Value;
+                var agoStr = ago.TotalMinutes < 2  ? "Just now" :
+                             ago.TotalMinutes < 60 ? $"{(int)ago.TotalMinutes}m ago" :
+                             ago.TotalHours < 24   ? $"{(int)ago.TotalHours}h ago" :
+                                                     $"{(int)ago.TotalDays}d ago";
+                <span style="color:#aaa; font-size:13px;">@agoStr</span>
+            }
+            else { <span class="badge-none">Never</span> }
+        </div>
+        <div class="ms-auto d-flex gap-2 flex-wrap">
+            <form method="post" asp-page-handler="Renew">
+                <input type="hidden" asp-for="Mac" />
+                <input type="hidden" asp-for="DeviceId" />
+                <input type="hidden" name="unlimited" value="false" />
+                <button type="submit" class="btn-gold" style="padding:7px 16px; font-size:13px;">
+                    Renew 1 Year
+                </button>
+            </form>
+            <form method="post" asp-page-handler="Renew" onsubmit="return confirm('Set this device to Unlimited access?')">
+                <input type="hidden" asp-for="Mac" />
+                <input type="hidden" asp-for="DeviceId" />
+                <input type="hidden" name="unlimited" value="true" />
+                <button type="submit" class="btn-ghost" style="padding:7px 16px; font-size:13px; color:#FFD700; border-color:rgba(255,215,0,.3);">
+                    ∞ Unlimited
+                </button>
+            </form>
+            <form method="post" asp-page-handler="EndSubscription"
+                  onsubmit="return confirm('End subscription for @Model.Device.Mac? The device will immediately lose access.')">
+                <input type="hidden" asp-for="Mac" />
+                <input type="hidden" asp-for="DeviceId" />
+                <button type="submit" class="btn-danger-sm" style="padding:7px 16px; font-size:13px;">
+                    End Subscription
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Playlists -->
+<div class="panel-card">
+    <div class="panel-card-title">Assigned Playlists</div>
+
+    @if (Model.Device.Playlists.Count == 0)
+    {
+        <div class="empty-state">No playlists assigned yet.</div>
+    }
+    else
+    {
+        <table class="dark-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Host</th>
+                        <th>Username</th>
+                        <th>Password</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+            <tbody>
+                @for (int i = 0; i < Model.Device.Playlists.Count; i++)
+                {
+                    var p = Model.Device.Playlists[i];
+                    <tr>
+                        <td style="color:#555; font-size:12px;">@(i + 1)</td>
+                        <td style="color:#fff; font-weight:500;">@(string.IsNullOrEmpty(p.Name) ? "—" : p.Name)</td>
+                        <td><small style="font-family:monospace; color:#aaa;">@p.Host</small></td>
+                        <td>@p.Username</td>
+                        <td><small style="color:#666; font-family:monospace;">@p.Password</small></td>
+                        <td style="text-align:right; white-space:nowrap;">
+                            <button class="btn-warning-sm me-1 btn-edit"
+                                    data-idx="@i"
+                                    data-name="@p.Name"
+                                    data-host="@p.Host"
+                                    data-user="@p.Username"
+                                    data-pass="@p.Password">
+                                Edit
+                            </button>
+                            <form method="post" asp-page-handler="DeletePlaylist" class="d-inline"
+                                  onsubmit="return confirm('Delete this playlist?')">
+                                <input type="hidden" name="Mac" value="@Model.Device.Mac" />
+                                <input type="hidden" name="DeviceId" value="@Model.Device.DeviceId" />
+                                <input type="hidden" name="PlaylistIndex" value="@i" />
+                                <button type="submit" class="btn-danger-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<!-- Add Playlist -->
+<div class="panel-card">
+    <div class="panel-card-title">Add Xtream Playlist</div>
+
+    <div class="mb-3">
+        <label class="form-label">Extract from M3U URL</label>
+        <div class="input-group">
+            <input type="text" id="m3uExtractUrl" class="form-control"
+                   placeholder="http://server/get.php?username=…&password=…" />
+            <button class="btn-ghost" type="button" id="btnExtract">Extract</button>
+        </div>
+        <div style="font-size:11px; color:#444; margin-top:6px;">Paste an M3U URL to auto-fill the fields below.</div>
+    </div>
+
+    <hr class="section-divider" />
+
+    <form method="post" asp-page-handler="AddPlaylist">
+        <input type="hidden" asp-for="Mac" />
+        <input type="hidden" asp-for="DeviceId" />
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Name / Label</label>
+                <input asp-for="PlaylistName" id="fName" class="form-control" placeholder="e.g. John's TV" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Host</label>
+                <input asp-for="Host" id="fHost" class="form-control" placeholder="http://yourserver.com" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Username</label>
+                <input asp-for="Username" id="fUsername" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Password</label>
+                <input asp-for="Password" id="fPassword" class="form-control" />
+            </div>
+        </div>
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div class="alert-error mt-3">Please fill in Host, Username and Password.</div>
+        }
+        <button type="submit" class="btn-gold mt-4">Add Playlist</button>
+    </form>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="dark-modal-overlay">
+    <div class="dark-modal">
+        <h5>Edit Playlist</h5>
+        <form method="post" asp-page-handler="EditPlaylist">
+            <input type="hidden" asp-for="Mac" />
+            <input type="hidden" asp-for="DeviceId" />
+            <input type="hidden" id="editIndex" name="PlaylistIndex" value="-1" />
+        <div class="mb-3">
+            <label class="form-label">Name / Label</label>
+            <input id="eName" name="PlaylistName" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Host</label>
+            <input id="eHost" name="Host" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input id="eUsername" name="Username" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input id="ePassword" name="Password" class="form-control" />
+        </div>
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn-gold" style="flex:1; height:40px;">Save Changes</button>
+                <button type="button" class="btn-ghost" onclick="closeEdit()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function closeEdit() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+    document.querySelectorAll('.btn-edit').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.getElementById('editIndex').value = this.dataset.idx;
+            document.getElementById('eName').value = this.dataset.name;
+            document.getElementById('eHost').value = this.dataset.host;
+            document.getElementById('eUsername').value = this.dataset.user;
+            document.getElementById('ePassword').value = this.dataset.pass;
+            document.getElementById('editModal').style.display = 'flex';
+        });
+    });
+    document.getElementById('btnExtract').addEventListener('click', function () {
+        var url = document.getElementById('m3uExtractUrl').value.trim();
+        try {
+            var u = new URL(url);
+            var params = new URLSearchParams(u.search);
+            var user = params.get('username') || '';
+            var pass = params.get('password') || '';
+            var host = u.origin;
+            if (!user) { alert('No username found in URL.'); return; }
+            document.getElementById('fHost').value = host;
+            document.getElementById('fUsername').value = user;
+            document.getElementById('fPassword').value = pass;
+        } catch(e) { alert('Invalid URL.'); }
+    });
+</script>
+}
