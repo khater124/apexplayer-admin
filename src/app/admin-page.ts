@@ -86,6 +86,19 @@ export function renderAdminPage(): string {
         .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .details-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+        .host-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+        .host-index {
+            display: inline-flex;
+            min-width: 62px;
+            justify-content: center;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 4px 9px;
+            color: var(--muted);
+            background: rgba(24,34,50,.76);
+            font-size: 12px;
+        }
         .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
         .summary {
             display: grid;
@@ -139,7 +152,7 @@ export function renderAdminPage(): string {
         .toast.bad { border-color: rgba(255,107,107,.62); }
         .toast strong { display: block; margin-bottom: 2px; }
         @media (max-width: 1000px) {
-            .grid, .grid.two, .summary { grid-template-columns: 1fr; }
+            .grid, .grid.two, .summary, .host-form { grid-template-columns: 1fr; }
             main { padding: 14px; }
             th, td { min-width: 140px; }
             header { padding: 16px 14px; }
@@ -284,17 +297,15 @@ export function renderAdminPage(): string {
                 $('#codesTable').innerHTML = empty('No provider codes yet. Create code 557, then add one or more hidden Xtream hosts.');
                 return;
             }
-            $('#codesTable').innerHTML = '<table><thead><tr><th>Code</th><th>Store</th><th>Status</th><th>Expires</th><th>Devices</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
+            $('#codesTable').innerHTML = '<table><thead><tr><th>Code</th><th>Store</th><th>Expires</th><th>Devices</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
                 state.codes.map((code) => '<tr>' +
                     '<td class="mono">' + esc(code.code) + '</td>' +
                     '<td>' + esc(code.store_name) + '</td>' +
-                    '<td>' + (code.is_active && !code.is_blocked ? '<span class="ok">Active</span>' : '<span class="bad">Blocked</span>') + '</td>' +
                     '<td>' + esc(fmt(code.expires_at)) + '</td>' +
                     '<td>' + esc(code.device_count ?? 0) + '</td>' +
                     '<td>' + esc(code.notes || '') + '</td>' +
                     '<td class="actions">' +
                         '<button data-action="details" data-id="' + esc(code.id) + '">Details</button>' +
-                        '<button data-action="toggle-code" data-id="' + esc(code.id) + '">' + (code.is_blocked ? 'Unblock' : 'Block') + '</button>' +
                         '<button class="danger" data-action="delete-code" data-id="' + esc(code.id) + '">Delete</button>' +
                     '</td>' +
                 '</tr>').join('') + '</tbody></table>';
@@ -337,28 +348,18 @@ export function renderAdminPage(): string {
             state.codeDevices = devices.items;
             $('#codeDetails').classList.remove('hidden');
             $('#codeDetails').innerHTML =
-                '<h2>Provider Code ' + esc(code?.code || '') + '</h2>' +
-                '<form id="editCodeForm" class="grid">' +
-                    '<label>Store Name<input name="store_name" value="' + esc(code?.store_name || '') + '" required></label>' +
-                    '<label>Expires At<input name="expires_at" type="datetime-local"></label>' +
-                    '<label>Active<select name="is_active"><option value="true">Active</option><option value="false">Inactive</option></select></label>' +
-                    '<label>Blocked<select name="is_blocked"><option value="false">Unblocked</option><option value="true">Blocked</option></select></label>' +
-                    '<label>Notes<textarea name="notes">' + esc(code?.notes || '') + '</textarea></label>' +
-                    '<div class="actions"><button class="primary" type="submit">Save Code</button></div>' +
-                '</form>' +
+                '<div class="details-head">' +
+                    '<div><h2>Provider Code ' + esc(code?.code || '') + '</h2>' +
+                    '<div class="muted">Store: ' + esc(code?.store_name || '') + '</div></div>' +
+                    '<button data-action="close-details">Close</button>' +
+                '</div>' +
                 '<h3>Add Host</h3>' +
-                '<form id="hostForm" class="grid">' +
+                '<form id="hostForm" class="host-form">' +
                     '<label>Host URL<input name="host_url" placeholder="https://host.com" required></label>' +
-                    '<label>Priority<input name="priority" type="number" value="100" required></label>' +
-                    '<label>Notes<textarea name="notes"></textarea></label>' +
-                    '<div class="actions"><button class="primary" type="submit">Add Host</button></div>' +
+                    '<div class="actions"><button class="primary" type="submit">+ Add Host</button></div>' +
                 '</form>' +
                 '<h3>Hosts</h3><div class="table-wrap" id="hostsTable"></div>' +
                 '<h3>Connected Devices</h3><div class="table-wrap" id="codeDevicesTable"></div>';
-            const editForm = $('#editCodeForm');
-            editForm.elements.expires_at.value = code?.expires_at ? new Date(code.expires_at).toISOString().slice(0, 16) : '';
-            editForm.elements.is_active.value = String(Boolean(code?.is_active));
-            editForm.elements.is_blocked.value = String(Boolean(code?.is_blocked));
             renderHosts();
             renderDevices('#codeDevicesTable', state.codeDevices);
         }
@@ -368,15 +369,12 @@ export function renderAdminPage(): string {
                 $('#hostsTable').innerHTML = empty('No hosts for this provider code yet.');
                 return;
             }
-            $('#hostsTable').innerHTML = '<table><thead><tr><th>Host URL</th><th>Priority</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
-                state.hosts.map((host) => '<tr>' +
-                    '<td class="mono">' + esc(host.host_url) + '</td>' +
-                    '<td><input data-host-field="priority" data-id="' + esc(host.id) + '" type="number" value="' + esc(host.priority) + '"></td>' +
-                    '<td>' + boolText(host.is_active) + '</td>' +
-                    '<td><input data-host-field="notes" data-id="' + esc(host.id) + '" value="' + esc(host.notes || '') + '"></td>' +
+            $('#hostsTable').innerHTML = '<table><thead><tr><th>Order</th><th>Host URL</th><th>Actions</th></tr></thead><tbody>' +
+                state.hosts.map((host, index) => '<tr>' +
+                    '<td><span class="host-index">Host ' + esc(index + 1) + '</span></td>' +
+                    '<td><input class="mono" data-host-field="host_url" data-id="' + esc(host.id) + '" value="' + esc(host.host_url) + '"></td>' +
                     '<td class="actions">' +
                         '<button data-action="save-host" data-id="' + esc(host.id) + '">Save</button>' +
-                        '<button data-action="toggle-host" data-id="' + esc(host.id) + '">' + (host.is_active ? 'Disable' : 'Enable') + '</button>' +
                         '<button class="danger" data-action="delete-host" data-id="' + esc(host.id) + '">Delete</button>' +
                     '</td>' +
                 '</tr>').join('') + '</tbody></table>';
@@ -414,7 +412,7 @@ export function renderAdminPage(): string {
                 }
                 if (form.id === 'hostForm') {
                     const data = { ...submittedData };
-                    data.priority = Number(data.priority);
+                    data.priority = state.hosts.length + 1;
                     await api('/admin/api/provider-codes/' + state.selectedCodeId + '/hosts', { method: 'POST', body: JSON.stringify(data) });
                     form.reset();
                     await loadCodeDetails(state.selectedCodeId);
@@ -456,6 +454,11 @@ export function renderAdminPage(): string {
                 if (!action) return;
                 setBusy(true);
                 if (action === 'details') await loadCodeDetails(id);
+                if (action === 'close-details') {
+                    state.selectedCodeId = null;
+                    $('#codeDetails').classList.add('hidden');
+                    return;
+                }
                 if (action === 'toggle-code') {
                     const code = state.codes.find((item) => item.id === id);
                     await api('/admin/api/provider-codes/' + id, { method: 'PATCH', body: JSON.stringify({ is_blocked: !code.is_blocked }) });
@@ -470,17 +473,10 @@ export function renderAdminPage(): string {
                     showToast('Provider code deleted');
                 }
                 if (action === 'save-host') {
-                    const priority = document.querySelector('[data-host-field="priority"][data-id="' + id + '"]').value;
-                    const notes = document.querySelector('[data-host-field="notes"][data-id="' + id + '"]').value;
-                    await api('/admin/api/hosts/' + id, { method: 'PATCH', body: JSON.stringify({ priority: Number(priority), notes }) });
+                    const hostUrl = document.querySelector('[data-host-field="host_url"][data-id="' + id + '"]').value;
+                    await api('/admin/api/hosts/' + id, { method: 'PATCH', body: JSON.stringify({ host_url: hostUrl }) });
                     await loadCodeDetails(state.selectedCodeId);
                     showToast('Host saved');
-                }
-                if (action === 'toggle-host') {
-                    const host = state.hosts.find((item) => item.id === id);
-                    await api('/admin/api/hosts/' + id, { method: 'PATCH', body: JSON.stringify({ is_active: !host.is_active }) });
-                    await loadCodeDetails(state.selectedCodeId);
-                    showToast(host.is_active ? 'Host disabled' : 'Host enabled');
                 }
                 if (action === 'delete-host' && confirm('Delete this host?')) {
                     await api('/admin/api/hosts/' + id, { method: 'DELETE' });
