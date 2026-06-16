@@ -106,7 +106,30 @@ export function renderAdminPage(): string {
             background: rgba(24,34,50,.76);
             font-size: 12px;
         }
-        .device-playlists { display: grid; gap: 10px; min-width: 280px; }
+        .device-playlists { display: grid; gap: 10px; min-width: 0; }
+        .device-playlists-panel { margin-top: 10px; }
+        .device-playlists-panel.hidden { display: none; }
+        .playlist-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(24,34,50,.76);
+            color: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .playlist-toggle-btn:hover {
+            border-color: rgba(153,164,184,.45);
+            background: rgba(24,34,50,.95);
+        }
+        .playlist-toggle-btn[aria-expanded="true"] {
+            border-color: rgba(91,156,255,.45);
+            color: #dbe8ff;
+        }
         .device-playlist {
             border: 1px solid rgba(153,164,184,.22);
             border-radius: 7px;
@@ -141,7 +164,6 @@ export function renderAdminPage(): string {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            margin-bottom: 8px;
             font-size: 12px;
             color: var(--muted);
         }
@@ -494,7 +516,8 @@ export function renderAdminPage(): string {
             deviceSearch: '',
             deviceFilterStatus: 'all',
             deviceFilterCode: '',
-            adminUsername: 'admin'
+            adminUsername: 'admin',
+            expandedDevicePlaylistIds: new Set()
         };
         const $ = (selector) => document.querySelector(selector);
         const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -861,10 +884,26 @@ export function renderAdminPage(): string {
             }
         }
 
+        function isDevicePlaylistsExpanded(deviceId) {
+            return state.expandedDevicePlaylistIds.has(deviceId);
+        }
+
+        function toggleDevicePlaylists(deviceId) {
+            if (state.expandedDevicePlaylistIds.has(deviceId)) {
+                state.expandedDevicePlaylistIds.delete(deviceId);
+            } else {
+                state.expandedDevicePlaylistIds.add(deviceId);
+            }
+            renderDevices();
+        }
+
         function renderDevicePlaylists(device) {
             const playlists = getDevicePlaylists(device);
-            const countLabel = playlists.length === 1 ? '1 playlist' : playlists.length + ' playlists';
-            return '<div class="playlist-count"><span class="badge">' + esc(countLabel) + '</span></div>' +
+            const count = playlists.length;
+            const countLabel = count === 1 ? '1 playlist' : count + ' playlists';
+            const expanded = isDevicePlaylistsExpanded(device.id);
+            const toggleLabel = expanded ? 'Hide playlists' : 'Playlists';
+            const panel = '<div class="device-playlists-panel' + (expanded ? '' : ' hidden') + '">' +
                 '<div class="device-playlists">' + playlists.map((playlist, index) =>
                 '<div class="device-playlist">' +
                     '<div class="device-playlist-head">' +
@@ -878,7 +917,12 @@ export function renderAdminPage(): string {
                     playlistField('Host', playlist.resolved_host_used, 'Host URL') +
                     (playlist.last_seen_at ? '<div class="muted" style="margin-top:6px;font-size:12px">Last seen ' + esc(fmt(playlist.last_seen_at)) + '</div>' : '') +
                 '</div>'
-            ).join('') + '</div>';
+            ).join('') + '</div></div>';
+            return '<div class="playlist-count">' +
+                '<button type="button" class="playlist-toggle-btn" data-action="toggle-device-playlists" data-id="' + esc(device.id) + '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
+                    esc(toggleLabel) + ' <span class="badge">' + esc(countLabel) + '</span>' +
+                '</button>' +
+            '</div>' + panel;
         }
 
         async function loadCodeDetails(id) {
@@ -1097,6 +1141,10 @@ export function renderAdminPage(): string {
                 if (!action) return;
                 if (action === 'copy') {
                     await copyText(button.dataset.copy, button.dataset.copyLabel);
+                    return;
+                }
+                if (action === 'toggle-device-playlists') {
+                    toggleDevicePlaylists(id);
                     return;
                 }
                 setBusy(true);
