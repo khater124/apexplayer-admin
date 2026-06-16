@@ -3,7 +3,9 @@ export function renderAdminPage(): string {
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#080c12">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Apex Provider Admin</title>
     <style>
         :root {
@@ -21,7 +23,7 @@ export function renderAdminPage(): string {
             --warn: #ffd166;
             --shadow: 0 18px 45px rgba(0, 0, 0, .22);
         }
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
             margin: 0;
             font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -30,6 +32,7 @@ export function renderAdminPage(): string {
                 radial-gradient(circle at 20% 0%, rgba(47,136,255,.16), transparent 34rem),
                 linear-gradient(180deg, #0b111a 0, var(--bg) 18rem);
             min-height: 100vh;
+            padding-bottom: env(safe-area-inset-bottom);
         }
         header {
             display: flex;
@@ -57,9 +60,12 @@ export function renderAdminPage(): string {
             color: var(--text);
             padding: 9px 12px;
             cursor: pointer;
+            touch-action: manipulation;
         }
         .tab.active, button.primary { border-color: var(--accent); background: #15375d; }
-        button:hover:not(:disabled) { border-color: #7baef2; transform: translateY(-1px); }
+        @media (hover: hover) {
+            button:hover:not(:disabled) { border-color: #7baef2; transform: translateY(-1px); }
+        }
         button.danger { border-color: rgba(255,107,107,.72); color: #ffdede; }
         button:disabled { opacity: .45; cursor: not-allowed; }
         input, textarea, select {
@@ -176,6 +182,62 @@ export function renderAdminPage(): string {
         }
         .host-actions { display: flex; flex-wrap: wrap; gap: 6px; }
         .settings-form { max-width: 520px; }
+        .settings-divider {
+            border: 0;
+            border-top: 1px solid var(--line);
+            margin: 22px 0;
+        }
+        .device-list-mobile { display: none; gap: 12px; }
+        .device-card {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: rgba(8,12,18,.55);
+            padding: 14px;
+        }
+        .device-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .device-card-meta {
+            display: grid;
+            gap: 8px;
+            margin: 12px 0;
+            font-size: 13px;
+        }
+        .device-card-meta-row {
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr);
+            gap: 8px;
+            align-items: start;
+        }
+        .device-card-meta-row > span:first-child { color: var(--muted); }
+        .table-scroll-hint {
+            display: none;
+            color: var(--muted);
+            font-size: 12px;
+            margin: 0 0 8px;
+        }
+        .filter-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: end;
+            margin-bottom: 14px;
+        }
+        #appNotice {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        #dismissNotice {
+            padding: 2px 8px;
+            min-height: auto;
+            flex-shrink: 0;
+        }
         .loading-bar {
             height: 3px;
             background: rgba(105,167,255,.15);
@@ -195,7 +257,7 @@ export function renderAdminPage(): string {
             from { transform: translateX(-120%); }
             to { transform: translateX(320%); }
         }
-        .app-notice {
+        .app-notice-wrap {
             min-height: 20px;
             margin-bottom: 12px;
             padding: 10px 12px;
@@ -204,7 +266,7 @@ export function renderAdminPage(): string {
             background: rgba(24,34,50,.5);
             color: var(--muted);
         }
-        .app-notice.bad {
+        .app-notice-wrap.bad {
             color: #ffdede;
             border-color: rgba(255,107,107,.45);
             background: rgba(80, 24, 24, .28);
@@ -261,7 +323,49 @@ export function renderAdminPage(): string {
         .toast.ok { border-color: rgba(85,209,135,.55); }
         .toast.bad { border-color: rgba(255,107,107,.62); }
         .toast strong { display: block; margin-bottom: 2px; }
-        @media (max-width: 1000px) {
+        .desktop-only { display: block; }
+        .mobile-only { display: none; }
+        @media (max-width: 768px) {
+            .grid, .grid.two, .summary, .host-form, .filter-row { grid-template-columns: 1fr; }
+            .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            main { padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
+            header { padding: 14px 12px; flex-direction: column; align-items: stretch; gap: 10px; }
+            .header-subtitle { font-size: 12px; line-height: 1.35; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .tabs {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                margin-bottom: 0;
+            }
+            .tabs::-webkit-scrollbar { display: none; }
+            .tab { flex: 0 0 auto; min-height: 44px; }
+            #refreshButton { width: 100%; min-height: 44px; }
+            button, .tab { min-height: 44px; }
+            input, select, textarea { font-size: 16px; }
+            .card { padding: 16px; }
+            .settings-form { max-width: none; }
+            .device-playlists { min-width: 0; }
+            .details-head { flex-direction: column; align-items: stretch; }
+            .copy-btn { min-height: 40px; padding: 8px 12px; }
+            .playlist-field { grid-template-columns: 1fr; gap: 4px; }
+            .field-copy { flex-direction: column; align-items: stretch; }
+            .host-actions button { flex: 1 1 calc(50% - 6px); min-height: 44px; }
+            .toast {
+                left: 12px;
+                right: 12px;
+                bottom: calc(12px + env(safe-area-inset-bottom));
+                min-width: 0;
+            }
+            .table-scroll-hint { display: block; }
+            .desktop-only { display: none !important; }
+            .mobile-only { display: grid !important; }
+            .filter-actions { flex-direction: column; align-items: stretch; }
+            .filter-actions button { width: 100%; min-height: 44px; }
+            th, td { min-width: 120px; }
+        }
+        @media (max-width: 1000px) and (min-width: 769px) {
             .grid, .grid.two, .summary, .host-form, .filter-row { grid-template-columns: 1fr; }
             main { padding: 14px; }
             th, td { min-width: 140px; }
@@ -292,7 +396,10 @@ export function renderAdminPage(): string {
         </section>
         <section id="appView" class="hidden">
             <div id="loadingBar" class="loading-bar hidden"></div>
-            <div id="appNotice" class="app-notice hidden"></div>
+            <div id="appNotice" class="app-notice-wrap hidden">
+                <span id="appNoticeText"></span>
+                <button type="button" id="dismissNotice" aria-label="Dismiss notice">×</button>
+            </div>
             <div class="toolbar">
                 <div class="tabs">
                     <button class="tab active" data-tab="codes">Provider Codes</button>
@@ -330,7 +437,7 @@ export function renderAdminPage(): string {
                     <p class="muted" style="margin:0 0 12px">One row per physical device. Multiple playlists on the same install are grouped together.</p>
                     <div class="filter-row">
                         <label>Search
-                            <input id="deviceSearch" type="search" placeholder="Code, username, MAC, install ID...">
+                            <input id="deviceSearch" type="search" placeholder="Code, username, MAC, install ID..." enterkeyhint="search">
                         </label>
                         <label>Status
                             <select id="deviceFilterStatus">
@@ -345,14 +452,27 @@ export function renderAdminPage(): string {
                             </select>
                         </label>
                     </div>
+                    <div class="filter-actions">
+                        <button type="button" id="clearDeviceFilters">Clear filters</button>
+                    </div>
                     <div id="devicesFilterSummary" class="muted" style="margin-bottom:10px"></div>
-                    <div id="devicesTable" class="table-wrap"></div>
+                    <p class="table-scroll-hint">Swipe sideways to see more table columns.</p>
+                    <div id="devicesTable" class="table-wrap desktop-only"></div>
+                    <div id="devicesCards" class="device-list-mobile mobile-only"></div>
                 </div>
             </section>
             <section id="settingsTab" class="hidden">
                 <div class="card settings-form">
-                    <h2>Change Admin Password</h2>
-                    <p class="muted" style="margin:0 0 14px">Signed in as <strong id="settingsUsername">admin</strong>. Password changes are stored in the database.</p>
+                    <h2>Account Settings</h2>
+                    <p class="muted" style="margin:0 0 14px">Signed in as <strong id="settingsUsername">admin</strong>. Account changes are stored in the database.</p>
+                    <h3>Change Username</h3>
+                    <form id="changeUsernameForm" class="grid two">
+                        <label>New username<input name="new_username" autocomplete="username" pattern="[A-Za-z0-9_.-]+" title="Letters, numbers, dots, underscores, and hyphens only" required></label>
+                        <label>Current password<input name="current_password" type="password" autocomplete="current-password" required></label>
+                        <div class="actions"><button class="primary" type="submit">Update username</button></div>
+                    </form>
+                    <hr class="settings-divider">
+                    <h3>Change Password</h3>
                     <form id="changePasswordForm" class="grid two">
                         <label>Current password<input name="current_password" type="password" autocomplete="current-password" required></label>
                         <label>New password<input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label>
@@ -388,15 +508,21 @@ export function renderAdminPage(): string {
         };
         const setAppNotice = (message = '', tone = '') => {
             const notice = $('#appNotice');
-            if (!notice) return;
+            const noticeText = $('#appNoticeText');
+            if (!notice || !noticeText) return;
             if (!message) {
-                notice.textContent = '';
-                notice.className = 'app-notice hidden';
+                noticeText.textContent = '';
+                notice.className = 'app-notice-wrap hidden';
                 return;
             }
-            notice.textContent = message;
-            notice.className = 'app-notice' + (tone === 'bad' ? ' bad' : '');
+            noticeText.textContent = message;
+            notice.className = 'app-notice-wrap' + (tone === 'bad' ? ' bad' : '');
             notice.classList.remove('hidden');
+        };
+        const ensureOnline = () => {
+            if (!navigator.onLine) {
+                throw new Error('You appear to be offline. Check your connection and try again.');
+            }
         };
         const setLoading = (loading) => {
             $('#loadingBar')?.classList.toggle('active', loading);
@@ -434,6 +560,7 @@ export function renderAdminPage(): string {
         };
         const api = async (url, options = {}) => {
             try {
+                ensureOnline();
                 const response = await fetch(url, {
                     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
                     credentials: 'same-origin',
@@ -477,11 +604,33 @@ export function renderAdminPage(): string {
                 showToast('Nothing to copy', '', 'bad');
                 return;
             }
+            const copiedLabel = label ? label + ' copied to clipboard' : 'Value copied to clipboard';
             try {
-                await navigator.clipboard.writeText(text);
-                showToast('Copied', label ? label + ' copied to clipboard' : 'Value copied to clipboard');
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    showToast('Copied', copiedLabel);
+                    return;
+                }
+                throw new Error('Clipboard API unavailable');
             } catch {
-                showToast('Copy failed', 'Your browser blocked clipboard access.', 'bad');
+                try {
+                    const area = document.createElement('textarea');
+                    area.value = text;
+                    area.setAttribute('readonly', '');
+                    area.style.position = 'fixed';
+                    area.style.left = '-9999px';
+                    document.body.appendChild(area);
+                    area.select();
+                    const ok = document.execCommand('copy');
+                    area.remove();
+                    if (ok) {
+                        showToast('Copied', copiedLabel);
+                        return;
+                    }
+                } catch {
+                    // fall through
+                }
+                showToast('Copy failed', 'Copy manually or try again in your browser.', 'bad');
             }
         };
         const shortId = (value, size = 14) => {
@@ -573,6 +722,39 @@ export function renderAdminPage(): string {
                 : 'Showing ' + shown + ' of ' + total + ' device(s).';
         }
 
+        function clearDeviceFilters() {
+            state.deviceSearch = '';
+            state.deviceFilterStatus = 'all';
+            state.deviceFilterCode = '';
+            const search = $('#deviceSearch');
+            const status = $('#deviceFilterStatus');
+            const code = $('#deviceFilterCode');
+            if (search) search.value = '';
+            if (status) status.value = 'all';
+            if (code) code.value = '';
+            renderDevices();
+        }
+
+        function renderDeviceCard(device) {
+            return '<article class="device-card">' +
+                '<div class="device-card-head">' + boolText(!device.is_blocked) +
+                    '<span class="muted">' + esc(fmt(device.last_seen_at) || 'Never seen') + '</span>' +
+                '</div>' +
+                renderDevicePlaylists(device) +
+                '<div class="device-card-meta">' +
+                    '<div class="device-card-meta-row"><span>Device</span><span>' + copyCell(device.device_key, 'Device key') + '</span></div>' +
+                    '<div class="device-card-meta-row"><span>MAC</span><span>' + copyCell(device.mac_address, 'MAC address') + '</span></div>' +
+                    '<div class="device-card-meta-row"><span>Install</span><span>' + copyCell(device.app_installation_id, 'Install ID') + '</span></div>' +
+                    '<div class="device-card-meta-row"><span>Version</span><span class="mono">' + esc(device.app_version || '—') + '</span></div>' +
+                    '<div class="device-card-meta-row"><span>IP</span><span class="mono">' + esc(device.ip_address || '—') + '</span></div>' +
+                '</div>' +
+                '<div class="actions">' +
+                    '<button data-action="toggle-device" data-id="' + esc(device.id) + '">' + (device.is_blocked ? 'Unblock' : 'Block') + '</button>' +
+                    '<button class="danger" data-action="delete-device" data-id="' + esc(device.id) + '">Delete</button>' +
+                '</div>' +
+            '</article>';
+        }
+
         function updateMetrics() {
             $('#metricCodes').textContent = state.codes.length;
             $('#metricActiveCodes').textContent = state.codes.filter((code) => code.is_active && !code.is_blocked).length;
@@ -643,15 +825,20 @@ export function renderAdminPage(): string {
 
         function renderDevices(target = '#devicesTable', items = state.devices) {
             const filtered = items.filter((device) => deviceMatchesFilters(device));
-            if (target === '#devicesTable') {
+            const isMainList = target === '#devicesTable';
+            if (isMainList) {
                 updateDeviceFilterSummary(filtered.length, items.length);
             }
             if (items.length === 0) {
-                $(target).innerHTML = empty('No devices have logged in yet.');
+                const message = empty('No devices have logged in yet.');
+                $(target).innerHTML = message;
+                if (isMainList) $('#devicesCards').innerHTML = message;
                 return;
             }
             if (filtered.length === 0) {
-                $(target).innerHTML = empty('No devices match the current filters.');
+                const message = empty('No devices match the current filters.');
+                $(target).innerHTML = message;
+                if (isMainList) $('#devicesCards').innerHTML = message;
                 return;
             }
             $(target).innerHTML = '<table><thead><tr><th>Playlists</th><th>Device Key</th><th>MAC</th><th>Install ID</th><th>Version</th><th>IP</th><th>Last Seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
@@ -669,6 +856,9 @@ export function renderAdminPage(): string {
                         '<button class="danger" data-action="delete-device" data-id="' + esc(device.id) + '">Delete</button>' +
                     '</td>' +
                 '</tr>').join('') + '</tbody></table>';
+            if (isMainList) {
+                $('#devicesCards').innerHTML = filtered.map((device) => renderDeviceCard(device)).join('');
+            }
         }
 
         function renderDevicePlaylists(device) {
@@ -735,6 +925,7 @@ export function renderAdminPage(): string {
                     '<h3>Connected Devices (' + esc(state.codeDevices.length) + ')</h3><div class="table-wrap" id="codeDevicesTable"></div>';
                 renderHosts();
                 renderDevices('#codeDevicesTable', state.codeDevices);
+                $('#codeDetails').scrollIntoView({ behavior: 'smooth', block: 'start' });
             } catch (error) {
                 state.selectedCodeId = null;
                 $('#codeDetails').classList.add('hidden');
@@ -789,6 +980,7 @@ export function renderAdminPage(): string {
                 if (form.id === 'loginForm') {
                     await api('/admin/api/login', { method: 'POST', body: JSON.stringify(submittedData) });
                     form.reset();
+                    $('#loginNotice').textContent = '';
                     await refreshSession();
                     showToast('Signed in');
                 }
@@ -811,6 +1003,27 @@ export function renderAdminPage(): string {
                     await api('/admin/api/provider-codes/' + state.selectedCodeId, { method: 'PATCH', body: JSON.stringify(data) });
                     await refreshAll();
                     showToast('Provider code saved');
+                }
+                if (form.id === 'changeUsernameForm') {
+                    const newUsername = String(submittedData.new_username || '').trim();
+                    if (!newUsername) {
+                        throw new Error('Username is required.');
+                    }
+                    if (!/^[A-Za-z0-9_.-]+$/.test(newUsername)) {
+                        throw new Error('Username may only contain letters, numbers, dots, underscores, and hyphens.');
+                    }
+                    const result = await api('/admin/api/change-username', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            new_username: newUsername,
+                            current_password: submittedData.current_password
+                        })
+                    });
+                    state.adminUsername = result.username || newUsername;
+                    const settingsUser = $('#settingsUsername');
+                    if (settingsUser) settingsUser.textContent = state.adminUsername;
+                    form.reset();
+                    showToast('Username updated', 'You are now signed in as ' + state.adminUsername + '.');
                 }
                 if (form.id === 'changePasswordForm') {
                     if (submittedData.new_password !== submittedData.confirm_password) {
@@ -969,6 +1182,16 @@ export function renderAdminPage(): string {
                 state.deviceFilterCode = event.target.value;
                 renderDevices();
             }
+        });
+
+        $('#dismissNotice')?.addEventListener('click', () => setAppNotice(''));
+        $('#clearDeviceFilters')?.addEventListener('click', () => {
+            clearDeviceFilters();
+            showToast('Filters cleared');
+        });
+        window.addEventListener('online', () => setAppNotice(''));
+        window.addEventListener('offline', () => {
+            setAppNotice('You are offline. Some actions may fail until connection returns.', 'bad');
         });
 
         refreshSession().catch((error) => showToast('Could not load admin panel', error.message, 'bad'));

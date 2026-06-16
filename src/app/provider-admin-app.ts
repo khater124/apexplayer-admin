@@ -11,6 +11,7 @@ import {
     listProviderCodes,
     reorderProviderHosts,
     updateAdminPassword,
+    updateAdminUsername,
     updateDevicesLastSeen,
     verifyAdminCredentials,
 } from './repositories.js';
@@ -96,6 +97,16 @@ const changePasswordSchema = z
         path: ['confirm_password'],
     });
 
+const changeUsernameSchema = z.object({
+    new_username: z
+        .string()
+        .trim()
+        .min(1)
+        .max(180)
+        .regex(/^[A-Za-z0-9_.-]+$/),
+    current_password: z.string().min(1).max(500),
+});
+
 const hostReorderSchema = z.object({
     host_ids: z.array(z.string().uuid()).min(1),
 });
@@ -147,7 +158,10 @@ function validateBody<TSchema extends z.ZodTypeAny>(schema: TSchema) {
     return (req: Request, res: Response, next: NextFunction) => {
         const result = schema.safeParse(req.body);
         if (!result.success) {
-            res.status(400).json({ error: 'Invalid request' });
+            const issue = result.error.issues[0];
+            res.status(400).json({
+                error: issue?.message || 'Invalid request',
+            });
             return;
         }
         req.body = result.data;
@@ -190,6 +204,13 @@ function getRequestErrorResponse(error: unknown): {
             return {
                 status: 409,
                 message: 'This host already exists for the selected provider code.',
+            };
+        }
+
+        if (pgError.constraint?.includes('admin_users_username')) {
+            return {
+                status: 409,
+                message: 'That username is already in use.',
             };
         }
 
@@ -407,6 +428,32 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
                 return;
             }
             res.json({ success: true });
+        })
+    );
+
+    app.post(
+        '/admin/api/change-username',
+        adminOnly,
+        validateBody(changeUsernameSchema),
+        asyncRoute(async (req: AuthenticatedRequest, res) => {
+            const body = req.body as z.infer<typeof changeUsernameSchema>;
+            const currentUsername = req.admin?.username ?? config.adminUsername;
+            const result = await updateAdminUsername(
+                currentUsername,
+                body.current_password,
+                body.new_username,
+                config
+            );
+            if (!result.success) {
+                res.status(400).json({ error: result.error });
+                return;
+            }
+
+            setAuthCookie(res, config, {
+                sub: result.username,
+                username: result.username,
+            });
+            res.json({ success: true, username: result.username });
         })
     );
 

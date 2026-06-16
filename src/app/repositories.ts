@@ -64,17 +64,24 @@ export interface DevicePlaylistRow {
 export async function ensureConfiguredAdminUser(
     config: ProviderAdminConfig
 ): Promise<void> {
-    const existing = await query<{ id: string }>(
-        `SELECT id FROM admin_users WHERE username = $1 LIMIT 1`,
-        [config.adminUsername],
+    const anyAdmin = await query<{ id: string }>(
+        'SELECT id FROM admin_users LIMIT 1',
+        [],
         config
     );
-    if (existing.rows[0]) {
-        await query(
-            'UPDATE admin_users SET is_active = TRUE WHERE id = $1',
-            [existing.rows[0].id],
+    if (anyAdmin.rows[0]) {
+        const existing = await query<{ id: string }>(
+            `SELECT id FROM admin_users WHERE username = $1 LIMIT 1`,
+            [config.adminUsername],
             config
         );
+        if (existing.rows[0]) {
+            await query(
+                'UPDATE admin_users SET is_active = TRUE WHERE id = $1',
+                [existing.rows[0].id],
+                config
+            );
+        }
         return;
     }
 
@@ -116,6 +123,60 @@ export async function updateAdminPassword(
     }
 
     return { success: true };
+}
+
+export async function updateAdminUsername(
+    currentUsername: string,
+    currentPassword: string,
+    newUsername: string,
+    config: ProviderAdminConfig
+): Promise<
+    { success: true; username: string } | { success: false; error: string }
+> {
+    const normalizedUsername = newUsername.trim();
+    if (!normalizedUsername) {
+        return { success: false, error: 'Username is required.' };
+    }
+    if (normalizedUsername.toLowerCase() === currentUsername.toLowerCase()) {
+        return {
+            success: false,
+            error: 'Choose a different username than your current one.',
+        };
+    }
+
+    const valid = await verifyAdminCredentials(
+        currentUsername,
+        currentPassword,
+        config
+    );
+    if (!valid) {
+        return { success: false, error: 'Current password is incorrect.' };
+    }
+
+    const taken = await query<{ id: string }>(
+        `SELECT id FROM admin_users
+         WHERE lower(username) = lower($1) AND is_active = TRUE
+         LIMIT 1`,
+        [normalizedUsername],
+        config
+    );
+    if (taken.rows[0]) {
+        return { success: false, error: 'That username is already in use.' };
+    }
+
+    const result = await query<{ username: string }>(
+        `UPDATE admin_users
+         SET username = $2
+         WHERE username = $1 AND is_active = TRUE
+         RETURNING username`,
+        [currentUsername, normalizedUsername],
+        config
+    );
+    if (!result.rows[0]) {
+        return { success: false, error: 'Admin account not found.' };
+    }
+
+    return { success: true, username: result.rows[0].username };
 }
 
 export async function verifyAdminCredentials(
