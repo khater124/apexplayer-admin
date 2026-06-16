@@ -386,16 +386,17 @@ export function renderAdminPage(): string {
             event.preventDefault();
             const form = event.target;
             if (state.busy) return;
+            const submittedData = formData(form);
             setBusy(true);
             try {
                 if (form.id === 'loginForm') {
-                    await api('/admin/api/login', { method: 'POST', body: JSON.stringify(formData(form)) });
+                    await api('/admin/api/login', { method: 'POST', body: JSON.stringify(submittedData) });
                     form.reset();
                     await refreshSession();
                     showToast('Signed in');
                 }
                 if (form.id === 'codeForm') {
-                    const data = formData(form);
+                    const data = { ...submittedData };
                     data.expires_at = isoOrNull(data.expires_at);
                     await api('/admin/api/provider-codes', { method: 'POST', body: JSON.stringify(data) });
                     form.reset();
@@ -403,7 +404,7 @@ export function renderAdminPage(): string {
                     showToast('Provider code created');
                 }
                 if (form.id === 'editCodeForm') {
-                    const data = formData(form);
+                    const data = { ...submittedData };
                     data.expires_at = isoOrNull(data.expires_at);
                     data.is_active = data.is_active === 'true';
                     data.is_blocked = data.is_blocked === 'true';
@@ -412,7 +413,7 @@ export function renderAdminPage(): string {
                     showToast('Provider code saved');
                 }
                 if (form.id === 'hostForm') {
-                    const data = formData(form);
+                    const data = { ...submittedData };
                     data.priority = Number(data.priority);
                     await api('/admin/api/provider-codes/' + state.selectedCodeId + '/hosts', { method: 'POST', body: JSON.stringify(data) });
                     form.reset();
