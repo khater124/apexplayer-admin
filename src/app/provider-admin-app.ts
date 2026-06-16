@@ -578,7 +578,28 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
             }
             const body = req.body as z.infer<typeof devicePatchSchema>;
             const result = await query(
-                `UPDATE devices SET is_blocked = $2 WHERE id = $1 RETURNING *`,
+                `WITH target AS (
+                    SELECT device_key, mac_address, app_installation_id
+                    FROM devices
+                    WHERE id = $1
+                )
+                UPDATE devices SET is_blocked = $2
+                FROM target
+                WHERE
+                    devices.id = $1
+                    OR (
+                        target.device_key IS NOT NULL
+                        AND devices.device_key = target.device_key
+                    )
+                    OR (
+                        target.mac_address IS NOT NULL
+                        AND devices.mac_address = target.mac_address
+                    )
+                    OR (
+                        target.app_installation_id IS NOT NULL
+                        AND devices.app_installation_id = target.app_installation_id
+                    )
+                RETURNING devices.*`,
                 [req.params['id'], body.is_blocked],
                 config
             );
@@ -595,7 +616,27 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
                 return;
             }
             await query(
-                'DELETE FROM devices WHERE id = $1',
+                `WITH target AS (
+                    SELECT device_key, mac_address, app_installation_id
+                    FROM devices
+                    WHERE id = $1
+                )
+                DELETE FROM devices
+                USING target
+                WHERE
+                    devices.id = $1
+                    OR (
+                        target.device_key IS NOT NULL
+                        AND devices.device_key = target.device_key
+                    )
+                    OR (
+                        target.mac_address IS NOT NULL
+                        AND devices.mac_address = target.mac_address
+                    )
+                    OR (
+                        target.app_installation_id IS NOT NULL
+                        AND devices.app_installation_id = target.app_installation_id
+                    )`,
                 [req.params['id']],
                 config
             );

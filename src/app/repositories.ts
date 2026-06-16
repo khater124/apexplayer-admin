@@ -100,7 +100,12 @@ export async function listProviderCodes(
     const result = await query<ProviderCodeRow>(
         `SELECT
             provider_codes.*,
-            COUNT(devices.id)::int AS device_count
+            COUNT(DISTINCT COALESCE(
+                devices.device_key,
+                devices.mac_address,
+                devices.app_installation_id,
+                devices.id::text
+            ))::int AS device_count
          FROM provider_codes
          LEFT JOIN devices ON devices.provider_code_id = provider_codes.id
          GROUP BY provider_codes.id
@@ -156,22 +161,16 @@ export async function findMatchingDevice(
             (
                 $1::text IS NOT NULL
                 AND app_installation_id = $1
-                AND ($4::text IS NULL OR provider_code = $4)
-                AND ($5::text IS NULL OR username = $5)
             )
             OR (
                 $2::text IS NOT NULL
                 AND device_key = $2
-                AND ($4::text IS NULL OR provider_code = $4)
-                AND ($5::text IS NULL OR username = $5)
             )
             OR (
                 $3::text IS NOT NULL
                 AND mac_address = $3
-                AND ($4::text IS NULL OR provider_code = $4)
-                AND ($5::text IS NULL OR username = $5)
             )
-         ORDER BY updated_at DESC
+         ORDER BY is_blocked DESC, updated_at DESC
          LIMIT 1`,
         [
             input.appInstallationId ?? null,
@@ -287,15 +286,40 @@ export async function listDevices(
 ): Promise<DeviceRow[]> {
     const result = await query<DeviceRow>(
         `SELECT
-            devices.*,
+            ranked.*,
             provider_codes.store_name,
             provider_codes.is_blocked AS code_is_blocked,
             provider_codes.is_active AS code_is_active,
             provider_codes.expires_at AS code_expires_at
-         FROM devices
-         LEFT JOIN provider_codes ON provider_codes.id = devices.provider_code_id
-         ${providerCodeId ? 'WHERE devices.provider_code_id = $1' : ''}
-         ORDER BY devices.last_seen_at DESC NULLS LAST, devices.created_at DESC`,
+         FROM (
+            SELECT DISTINCT ON (COALESCE(
+                devices.device_key,
+                devices.mac_address,
+                devices.app_installation_id,
+                devices.id::text
+            ))
+                devices.*,
+                COALESCE(
+                    devices.device_key,
+                    devices.mac_address,
+                    devices.app_installation_id,
+                    devices.id::text
+                ) AS device_identity
+            FROM devices
+            ${providerCodeId ? 'WHERE devices.provider_code_id = $1' : ''}
+            ORDER BY
+                COALESCE(
+                    devices.device_key,
+                    devices.mac_address,
+                    devices.app_installation_id,
+                    devices.id::text
+                ),
+                devices.is_blocked DESC,
+                devices.last_seen_at DESC NULLS LAST,
+                devices.created_at DESC
+         ) ranked
+         LEFT JOIN provider_codes ON provider_codes.id = ranked.provider_code_id
+         ORDER BY ranked.last_seen_at DESC NULLS LAST, ranked.created_at DESC`,
         providerCodeId ? [providerCodeId] : [],
         config
     );
