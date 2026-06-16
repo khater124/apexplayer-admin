@@ -9,6 +9,8 @@ import { renderAdminPage } from './admin-page.js';
 import {
     listDevices,
     listProviderCodes,
+    reorderProviderHosts,
+    updateAdminPassword,
     updateDevicesLastSeen,
     verifyAdminCredentials,
 } from './repositories.js';
@@ -81,6 +83,21 @@ const deviceCheckSchema = z.object({
     device_key: z.string().trim().max(64).nullable().optional(),
     mac_address: z.string().trim().max(64).nullable().optional(),
     app_installation_id: z.string().trim().max(128).nullable().optional(),
+});
+
+const changePasswordSchema = z
+    .object({
+        current_password: z.string().min(1).max(500),
+        new_password: z.string().min(8).max(500),
+        confirm_password: z.string().min(1).max(500),
+    })
+    .refine((data) => data.new_password === data.confirm_password, {
+        message: 'New passwords do not match.',
+        path: ['confirm_password'],
+    });
+
+const hostReorderSchema = z.object({
+    host_ids: z.array(z.string().uuid()).min(1),
 });
 
 function getRequestIp(req: Request): string | null {
@@ -333,8 +350,11 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
             return;
         }
         try {
-            jwt.verify(token, config.sessionSecret);
-            res.json({ authenticated: true });
+            const payload = jwt.verify(
+                token,
+                config.sessionSecret
+            ) as AdminJwtPayload;
+            res.json({ authenticated: true, username: payload.username });
         } catch {
             res.json({ authenticated: false });
         }
@@ -368,6 +388,27 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
         res.clearCookie(COOKIE_NAME);
         res.json({ success: true });
     });
+
+    app.post(
+        '/admin/api/change-password',
+        adminOnly,
+        validateBody(changePasswordSchema),
+        asyncRoute(async (req: AuthenticatedRequest, res) => {
+            const body = req.body as z.infer<typeof changePasswordSchema>;
+            const username = req.admin?.username ?? config.adminUsername;
+            const result = await updateAdminPassword(
+                username,
+                body.current_password,
+                body.new_password,
+                config
+            );
+            if (!result.success) {
+                res.status(400).json({ error: result.error });
+                return;
+            }
+            res.json({ success: true });
+        })
+    );
 
     app.get(
         '/admin/api/provider-codes',
@@ -530,7 +571,30 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
                 ],
                 config
             );
+            if (!result.rows[0]) {
+                res.status(404).json({ error: 'Host not found' });
+                return;
+            }
             res.json({ item: result.rows[0] });
+        })
+    );
+
+    app.post(
+        '/admin/api/provider-codes/:id/hosts/reorder',
+        adminOnly,
+        validateBody(hostReorderSchema),
+        asyncRoute(async (req, res) => {
+            if (!isUuid(req.params['id'])) {
+                res.status(404).json({ error: 'Not found' });
+                return;
+            }
+            const body = req.body as z.infer<typeof hostReorderSchema>;
+            const items = await reorderProviderHosts(
+                req.params['id'],
+                body.host_ids,
+                config
+            );
+            res.json({ items });
         })
     );
 

@@ -155,6 +155,27 @@ export function renderAdminPage(): string {
             max-width: 320px;
             margin-bottom: 14px;
         }
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .field-copy {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            justify-content: space-between;
+        }
+        .field-copy .mono { flex: 1; min-width: 0; }
+        .copy-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .host-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        .settings-form { max-width: 520px; }
         .loading-bar {
             height: 3px;
             background: rgba(105,167,255,.15);
@@ -241,7 +262,7 @@ export function renderAdminPage(): string {
         .toast.bad { border-color: rgba(255,107,107,.62); }
         .toast strong { display: block; margin-bottom: 2px; }
         @media (max-width: 1000px) {
-            .grid, .grid.two, .summary, .host-form { grid-template-columns: 1fr; }
+            .grid, .grid.two, .summary, .host-form, .filter-row { grid-template-columns: 1fr; }
             main { padding: 14px; }
             th, td { min-width: 140px; }
             header { padding: 16px 14px; }
@@ -276,6 +297,7 @@ export function renderAdminPage(): string {
                 <div class="tabs">
                     <button class="tab active" data-tab="codes">Provider Codes</button>
                     <button class="tab" data-tab="devices">Devices <span id="devicesTabCount" class="badge">0</span></button>
+                    <button class="tab" data-tab="settings">Settings</button>
                 </div>
                 <button id="refreshButton">Refresh</button>
             </div>
@@ -306,16 +328,54 @@ export function renderAdminPage(): string {
                 <div class="card">
                     <h2>Devices</h2>
                     <p class="muted" style="margin:0 0 12px">One row per physical device. Multiple playlists on the same install are grouped together.</p>
-                    <label class="search-box">Search devices
-                        <input id="deviceSearch" type="search" placeholder="Code, username, MAC, install ID...">
-                    </label>
+                    <div class="filter-row">
+                        <label>Search
+                            <input id="deviceSearch" type="search" placeholder="Code, username, MAC, install ID...">
+                        </label>
+                        <label>Status
+                            <select id="deviceFilterStatus">
+                                <option value="all">All devices</option>
+                                <option value="active">Active only</option>
+                                <option value="blocked">Blocked only</option>
+                            </select>
+                        </label>
+                        <label>Provider code
+                            <select id="deviceFilterCode">
+                                <option value="">All codes</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div id="devicesFilterSummary" class="muted" style="margin-bottom:10px"></div>
                     <div id="devicesTable" class="table-wrap"></div>
+                </div>
+            </section>
+            <section id="settingsTab" class="hidden">
+                <div class="card settings-form">
+                    <h2>Change Admin Password</h2>
+                    <p class="muted" style="margin:0 0 14px">Signed in as <strong id="settingsUsername">admin</strong>. Password changes are stored in the database.</p>
+                    <form id="changePasswordForm" class="grid two">
+                        <label>Current password<input name="current_password" type="password" autocomplete="current-password" required></label>
+                        <label>New password<input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label>
+                        <label>Confirm new password<input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label>
+                        <div class="actions"><button class="primary" type="submit">Update password</button></div>
+                    </form>
                 </div>
             </section>
         </section>
     </main>
     <script>
-        const state = { codes: [], devices: [], selectedCodeId: null, hosts: [], codeDevices: [], busy: false, deviceSearch: '' };
+        const state = {
+            codes: [],
+            devices: [],
+            selectedCodeId: null,
+            hosts: [],
+            codeDevices: [],
+            busy: false,
+            deviceSearch: '',
+            deviceFilterStatus: 'all',
+            deviceFilterCode: '',
+            adminUsername: 'admin'
+        };
         const $ = (selector) => document.querySelector(selector);
         const $$ = (selector) => Array.from(document.querySelectorAll(selector));
         const showToast = (title, message = '', tone = 'ok') => {
@@ -402,7 +462,28 @@ export function renderAdminPage(): string {
         const boolText = (ok) => ok ? '<span class="ok">Active</span>' : '<span class="bad">Blocked</span>';
         const formData = (form) => Object.fromEntries(new FormData(form).entries());
         const isoOrNull = (value) => value ? new Date(value).toISOString() : null;
+        const datetimeLocalValue = (value) => {
+            if (!value) return '';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            const pad = (part) => String(part).padStart(2, '0');
+            return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+                'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+        };
         const empty = (message) => '<div class="empty">' + esc(message) + '</div>';
+        const copyText = async (value, label) => {
+            const text = String(value ?? '').trim();
+            if (!text) {
+                showToast('Nothing to copy', '', 'bad');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Copied', label ? label + ' copied to clipboard' : 'Value copied to clipboard');
+            } catch {
+                showToast('Copy failed', 'Your browser blocked clipboard access.', 'bad');
+            }
+        };
         const shortId = (value, size = 14) => {
             const text = String(value ?? '');
             if (!text) return '';
@@ -438,6 +519,17 @@ export function renderAdminPage(): string {
             ].join(' ').toLowerCase();
             return haystack.includes(query.toLowerCase());
         };
+        const deviceMatchesFilters = (device) => {
+            if (state.deviceFilterStatus === 'active' && device.is_blocked) return false;
+            if (state.deviceFilterStatus === 'blocked' && !device.is_blocked) return false;
+            if (state.deviceFilterCode) {
+                const hasCode = getDevicePlaylists(device).some(
+                    (playlist) => playlist.provider_code === state.deviceFilterCode
+                );
+                if (!hasCode) return false;
+            }
+            return deviceMatchesSearch(device, state.deviceSearch);
+        };
         const codeStatusBadge = (code) => {
             const expired = code.expires_at && Date.parse(code.expires_at) <= Date.now();
             if (code.is_blocked) return '<span class="badge bad">Blocked</span>';
@@ -445,8 +537,41 @@ export function renderAdminPage(): string {
             if (expired) return '<span class="badge warn">Expired</span>';
             return '<span class="badge ok">Active</span>';
         };
-        const playlistField = (label, value) =>
-            '<div class="playlist-field"><span>' + esc(label) + '</span><span class="mono">' + esc(value || '—') + '</span></div>';
+        const playlistField = (label, value, copyLabel) => {
+            if (!value) {
+                return '<div class="playlist-field"><span>' + esc(label) + '</span><span class="mono">—</span></div>';
+            }
+            return '<div class="playlist-field"><span>' + esc(label) + '</span><span class="field-copy">' +
+                '<span class="mono">' + esc(value) + '</span>' +
+                '<button type="button" class="copy-btn" data-action="copy" data-copy="' + esc(value) + '" data-copy-label="' + esc(copyLabel || label) + '">Copy</button>' +
+            '</span></div>';
+        };
+        const copyCell = (value, label) => {
+            if (!value) return '<span class="mono">—</span>';
+            return '<span class="field-copy"><span class="mono" title="' + esc(value) + '">' + esc(shortId(value, 18)) + '</span>' +
+                '<button type="button" class="copy-btn" data-action="copy" data-copy="' + esc(value) + '" data-copy-label="' + esc(label) + '">Copy</button></span>';
+        };
+
+        function renderDeviceFilterOptions() {
+            const select = $('#deviceFilterCode');
+            if (!select) return;
+            const current = state.deviceFilterCode;
+            const codes = [...new Set(state.codes.map((code) => code.code))].sort();
+            select.innerHTML = '<option value="">All codes</option>' +
+                codes.map((code) => '<option value="' + esc(code) + '"' + (code === current ? ' selected' : '') + '>' + esc(code) + '</option>').join('');
+        }
+
+        function updateDeviceFilterSummary(shown, total) {
+            const summary = $('#devicesFilterSummary');
+            if (!summary) return;
+            if (total === 0) {
+                summary.textContent = '';
+                return;
+            }
+            summary.textContent = shown === total
+                ? 'Showing all ' + total + ' device(s).'
+                : 'Showing ' + shown + ' of ' + total + ' device(s).';
+        }
 
         function updateMetrics() {
             $('#metricCodes').textContent = state.codes.length;
@@ -463,6 +588,11 @@ export function renderAdminPage(): string {
                 $('#appView').classList.toggle('hidden', !session.authenticated);
                 $('#logoutButton').classList.toggle('hidden', !session.authenticated);
                 $('#sessionLabel').textContent = session.authenticated ? 'Signed in' : '';
+                if (session.username) {
+                    state.adminUsername = session.username;
+                    const settingsUser = $('#settingsUsername');
+                    if (settingsUser) settingsUser.textContent = session.username;
+                }
                 if (session.authenticated) {
                     await refreshAll();
                 }
@@ -481,6 +611,7 @@ export function renderAdminPage(): string {
                 state.codes = codes.items || [];
                 state.devices = devices.items || [];
                 updateMetrics();
+                renderDeviceFilterOptions();
                 renderCodes();
                 renderDevices();
                 if (state.selectedCodeId) await loadCodeDetails(state.selectedCodeId);
@@ -511,21 +642,24 @@ export function renderAdminPage(): string {
         }
 
         function renderDevices(target = '#devicesTable', items = state.devices) {
-            const filtered = items.filter((device) => deviceMatchesSearch(device, state.deviceSearch));
+            const filtered = items.filter((device) => deviceMatchesFilters(device));
+            if (target === '#devicesTable') {
+                updateDeviceFilterSummary(filtered.length, items.length);
+            }
             if (items.length === 0) {
                 $(target).innerHTML = empty('No devices have logged in yet.');
                 return;
             }
             if (filtered.length === 0) {
-                $(target).innerHTML = empty('No devices match your search.');
+                $(target).innerHTML = empty('No devices match the current filters.');
                 return;
             }
             $(target).innerHTML = '<table><thead><tr><th>Playlists</th><th>Device Key</th><th>MAC</th><th>Install ID</th><th>Version</th><th>IP</th><th>Last Seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 filtered.map((device) => '<tr>' +
                     '<td>' + renderDevicePlaylists(device) + '</td>' +
-                    '<td class="mono" title="' + esc(device.device_key || '') + '">' + esc(shortId(device.device_key, 18)) + '</td>' +
-                    '<td class="mono" title="' + esc(device.mac_address || '') + '">' + esc(device.mac_address || '—') + '</td>' +
-                    '<td class="mono" title="' + esc(device.app_installation_id || '') + '">' + esc(shortId(device.app_installation_id, 18)) + '</td>' +
+                    '<td>' + copyCell(device.device_key, 'Device key') + '</td>' +
+                    '<td>' + copyCell(device.mac_address, 'MAC address') + '</td>' +
+                    '<td>' + copyCell(device.app_installation_id, 'Install ID') + '</td>' +
                     '<td>' + esc(device.app_version || '—') + '</td>' +
                     '<td>' + esc(device.ip_address || '—') + '</td>' +
                     '<td>' + esc(fmt(device.last_seen_at) || '—') + '</td>' +
@@ -549,9 +683,9 @@ export function renderAdminPage(): string {
                         '</div>' +
                         '<span class="playlist-index">#' + esc(index + 1) + '</span>' +
                     '</div>' +
-                    playlistField('User', playlist.username) +
-                    playlistField('Pass', playlist.password) +
-                    playlistField('Host', playlist.resolved_host_used) +
+                    playlistField('User', playlist.username, 'Username') +
+                    playlistField('Pass', playlist.password, 'Password') +
+                    playlistField('Host', playlist.resolved_host_used, 'Host URL') +
                     (playlist.last_seen_at ? '<div class="muted" style="margin-top:6px;font-size:12px">Last seen ' + esc(fmt(playlist.last_seen_at)) + '</div>' : '') +
                 '</div>'
             ).join('') + '</div>';
@@ -574,9 +708,24 @@ export function renderAdminPage(): string {
                 $('#codeDetails').innerHTML =
                     '<div class="details-head">' +
                         '<div><h2>Provider Code ' + esc(code.code) + '</h2>' +
-                        '<div class="muted">Store: ' + esc(code.store_name) + ' · ' + codeStatusBadge(code) + '</div></div>' +
+                        '<div class="muted">Code: <span class="mono">' + esc(code.code) + '</span> · ' + codeStatusBadge(code) + '</div></div>' +
                         '<button data-action="close-details">Close</button>' +
                     '</div>' +
+                    '<h3>Edit Provider Code</h3>' +
+                    '<form id="editCodeForm" class="grid two">' +
+                        '<label>Store Name<input name="store_name" value="' + esc(code.store_name) + '" required></label>' +
+                        '<label>Expires At<input name="expires_at" type="datetime-local" value="' + esc(datetimeLocalValue(code.expires_at)) + '"></label>' +
+                        '<label>Status<select name="is_active">' +
+                            '<option value="true"' + (code.is_active ? ' selected' : '') + '>Active</option>' +
+                            '<option value="false"' + (!code.is_active ? ' selected' : '') + '>Inactive</option>' +
+                        '</select></label>' +
+                        '<label>Blocked<select name="is_blocked">' +
+                            '<option value="false"' + (!code.is_blocked ? ' selected' : '') + '>Not blocked</option>' +
+                            '<option value="true"' + (code.is_blocked ? ' selected' : '') + '>Blocked</option>' +
+                        '</select></label>' +
+                        '<label style="grid-column:1/-1">Notes<textarea name="notes">' + esc(code.notes || '') + '</textarea></label>' +
+                        '<div class="actions"><button class="primary" type="submit">Save changes</button></div>' +
+                    '</form>' +
                     '<h3>Add Host</h3>' +
                     '<form id="hostForm" class="host-form">' +
                         '<label>Host URL<input name="host_url" type="url" placeholder="https://host.example.com" required></label>' +
@@ -598,14 +747,36 @@ export function renderAdminPage(): string {
                 $('#hostsTable').innerHTML = empty('No hosts for this provider code yet.');
                 return;
             }
-            $('#hostsTable').innerHTML = '<table><thead><tr><th>Order</th><th>Host URL</th><th>Actions</th></tr></thead><tbody>' +
+            $('#hostsTable').innerHTML = '<table><thead><tr><th>Order</th><th>Host URL</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 state.hosts.map((host, index) => '<tr>' +
-                    '<td><span class="host-index">Host ' + esc(index + 1) + '</span></td>' +
-                    '<td class="mono">' + esc(host.host_url) + '</td>' +
-                    '<td class="actions">' +
+                    '<td><span class="host-index">#' + esc(index + 1) + '</span></td>' +
+                    '<td><span class="field-copy"><span class="mono">' + esc(host.host_url) + '</span>' +
+                        '<button type="button" class="copy-btn" data-action="copy" data-copy="' + esc(host.host_url) + '" data-copy-label="Host URL">Copy</button></span></td>' +
+                    '<td>' + (host.is_active ? '<span class="badge ok">Active</span>' : '<span class="badge warn">Inactive</span>') + '</td>' +
+                    '<td class="actions host-actions">' +
+                        '<button data-action="move-host-up" data-id="' + esc(host.id) + '"' + (index === 0 ? ' disabled' : '') + '>↑ Up</button>' +
+                        '<button data-action="move-host-down" data-id="' + esc(host.id) + '"' + (index === state.hosts.length - 1 ? ' disabled' : '') + '>↓ Down</button>' +
+                        '<button data-action="toggle-host" data-id="' + esc(host.id) + '">' + (host.is_active ? 'Disable' : 'Enable') + '</button>' +
                         '<button class="danger" data-action="delete-host" data-id="' + esc(host.id) + '">Delete</button>' +
                     '</td>' +
                 '</tr>').join('') + '</tbody></table>';
+        }
+
+        async function reorderHosts(hostId, direction) {
+            const index = state.hosts.findIndex((host) => host.id === hostId);
+            if (index < 0) return;
+            const targetIndex = direction === 'up' ? index - 1 : index + 1;
+            if (targetIndex < 0 || targetIndex >= state.hosts.length) return;
+            const hostIds = state.hosts.map((host) => host.id);
+            const temp = hostIds[index];
+            hostIds[index] = hostIds[targetIndex];
+            hostIds[targetIndex] = temp;
+            await api('/admin/api/provider-codes/' + state.selectedCodeId + '/hosts/reorder', {
+                method: 'POST',
+                body: JSON.stringify({ host_ids: hostIds })
+            });
+            await loadCodeDetails(state.selectedCodeId);
+            showToast('Host order updated');
         }
 
         document.addEventListener('submit', async (event) => {
@@ -634,9 +805,30 @@ export function renderAdminPage(): string {
                     data.expires_at = isoOrNull(data.expires_at);
                     data.is_active = data.is_active === 'true';
                     data.is_blocked = data.is_blocked === 'true';
+                    if (!data.store_name?.trim()) {
+                        throw new Error('Store name is required.');
+                    }
                     await api('/admin/api/provider-codes/' + state.selectedCodeId, { method: 'PATCH', body: JSON.stringify(data) });
                     await refreshAll();
                     showToast('Provider code saved');
+                }
+                if (form.id === 'changePasswordForm') {
+                    if (submittedData.new_password !== submittedData.confirm_password) {
+                        throw new Error('New passwords do not match.');
+                    }
+                    if (String(submittedData.new_password).length < 8) {
+                        throw new Error('New password must be at least 8 characters.');
+                    }
+                    await api('/admin/api/change-password', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            current_password: submittedData.current_password,
+                            new_password: submittedData.new_password,
+                            confirm_password: submittedData.confirm_password
+                        })
+                    });
+                    form.reset();
+                    showToast('Password updated', 'Use your new password next time you sign in.');
                 }
                 if (form.id === 'hostForm') {
                     const data = { ...submittedData };
@@ -674,6 +866,7 @@ export function renderAdminPage(): string {
                     document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab === button));
                     $('#codesTab').classList.toggle('hidden', button.dataset.tab !== 'codes');
                     $('#devicesTab').classList.toggle('hidden', button.dataset.tab !== 'devices');
+                    $('#settingsTab').classList.toggle('hidden', button.dataset.tab !== 'settings');
                 }
                 if (button.id === 'refreshButton') {
                     setBusy(true);
@@ -689,6 +882,10 @@ export function renderAdminPage(): string {
                     return;
                 }
                 if (!action) return;
+                if (action === 'copy') {
+                    await copyText(button.dataset.copy, button.dataset.copyLabel);
+                    return;
+                }
                 setBusy(true);
                 if (action === 'details') await loadCodeDetails(id);
                 if (action === 'close-details') {
@@ -714,6 +911,22 @@ export function renderAdminPage(): string {
                     await api('/admin/api/hosts/' + id, { method: 'DELETE' });
                     await loadCodeDetails(state.selectedCodeId);
                     showToast('Host deleted');
+                }
+                if (action === 'move-host-up') {
+                    await reorderHosts(id, 'up');
+                }
+                if (action === 'move-host-down') {
+                    await reorderHosts(id, 'down');
+                }
+                if (action === 'toggle-host') {
+                    const host = state.hosts.find((item) => item.id === id);
+                    if (!host) throw new Error('Host not found.');
+                    await api('/admin/api/hosts/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({ is_active: !host.is_active })
+                    });
+                    await loadCodeDetails(state.selectedCodeId);
+                    showToast(host.is_active ? 'Host disabled' : 'Host enabled');
                 }
                 if (action === 'toggle-device') {
                     const device = state.devices.concat(state.codeDevices).find((item) => item.id === id);
@@ -743,6 +956,17 @@ export function renderAdminPage(): string {
         document.addEventListener('input', (event) => {
             if (event.target?.id === 'deviceSearch') {
                 state.deviceSearch = event.target.value.trim();
+                renderDevices();
+            }
+        });
+
+        document.addEventListener('change', (event) => {
+            if (event.target?.id === 'deviceFilterStatus') {
+                state.deviceFilterStatus = event.target.value;
+                renderDevices();
+            }
+            if (event.target?.id === 'deviceFilterCode') {
+                state.deviceFilterCode = event.target.value;
                 renderDevices();
             }
         });

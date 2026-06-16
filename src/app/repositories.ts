@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { ProviderAdminConfig } from './config.js';
 import { decryptText, encryptText } from './crypto-utils.js';
-import { query } from './database.js';
+import { query, getPool } from './database.js';
 
 export interface ProviderCodeRow {
     id: string;
@@ -64,16 +64,58 @@ export interface DevicePlaylistRow {
 export async function ensureConfiguredAdminUser(
     config: ProviderAdminConfig
 ): Promise<void> {
+    const existing = await query<{ id: string }>(
+        `SELECT id FROM admin_users WHERE username = $1 LIMIT 1`,
+        [config.adminUsername],
+        config
+    );
+    if (existing.rows[0]) {
+        await query(
+            'UPDATE admin_users SET is_active = TRUE WHERE id = $1',
+            [existing.rows[0].id],
+            config
+        );
+        return;
+    }
+
     const passwordHash = await bcrypt.hash(config.adminPassword, 12);
     await query(
         `INSERT INTO admin_users (username, password_hash, is_active)
-         VALUES ($1, $2, TRUE)
-         ON CONFLICT (username) DO UPDATE SET
-            password_hash = excluded.password_hash,
-            is_active = TRUE`,
+         VALUES ($1, $2, TRUE)`,
         [config.adminUsername, passwordHash],
         config
     );
+}
+
+export async function updateAdminPassword(
+    username: string,
+    currentPassword: string,
+    newPassword: string,
+    config: ProviderAdminConfig
+): Promise<{ success: true } | { success: false; error: string }> {
+    const valid = await verifyAdminCredentials(
+        username,
+        currentPassword,
+        config
+    );
+    if (!valid) {
+        return { success: false, error: 'Current password is incorrect.' };
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const result = await query(
+        `UPDATE admin_users
+         SET password_hash = $2
+         WHERE username = $1 AND is_active = TRUE
+         RETURNING id`,
+        [username, passwordHash],
+        config
+    );
+    if (!result.rows[0]) {
+        return { success: false, error: 'Admin account not found.' };
+    }
+
+    return { success: true };
 }
 
 export async function verifyAdminCredentials(
@@ -428,4 +470,35 @@ export async function updateDevicesLastSeen(
         [deviceIds],
         config
     );
+}
+
+export async function reorderProviderHosts(
+    providerCodeId: string,
+    hostIds: string[],
+    config: ProviderAdminConfig
+): Promise<ProviderHostRow[]> {
+    if (hostIds.length === 0) {
+        return listHostsForCode(providerCodeId, config);
+    }
+
+    const client = await getPool(config).connect();
+    try {
+        await client.query('BEGIN');
+        for (const [index, hostId] of hostIds.entries()) {
+            await client.query(
+                `UPDATE provider_code_hosts
+                 SET priority = $3
+                 WHERE id = $1 AND provider_code_id = $2`,
+                [hostId, providerCodeId, (index + 1) * 10]
+            );
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+
+    return listHostsForCode(providerCodeId, config);
 }
