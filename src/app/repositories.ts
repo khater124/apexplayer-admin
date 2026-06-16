@@ -155,13 +155,43 @@ export async function listHostsForCode(
     return result.rows;
 }
 
-export async function findMatchingDevice(
+function deviceIdentityClause(alias = 'devices'): string {
+    return `(
+        ($1::text IS NOT NULL AND ${alias}.app_installation_id = $1)
+        OR ($2::text IS NOT NULL AND ${alias}.device_key = $2)
+        OR ($3::text IS NOT NULL AND ${alias}.mac_address = $3)
+    )`;
+}
+
+export async function isDeviceIdentityBlocked(
     input: {
         appInstallationId?: string | null;
         deviceKey?: string | null;
         macAddress?: string | null;
-        providerCode?: string;
-        username?: string;
+    },
+    config: ProviderAdminConfig
+): Promise<boolean> {
+    const result = await query<{ blocked: boolean }>(
+        `SELECT COALESCE(bool_or(is_blocked), FALSE) AS blocked
+         FROM devices
+         WHERE ${deviceIdentityClause()}`,
+        [
+            input.appInstallationId ?? null,
+            input.deviceKey ?? null,
+            input.macAddress ?? null,
+        ],
+        config
+    );
+    return result.rows[0]?.blocked ?? false;
+}
+
+export async function findDevicePlaylistLogin(
+    input: {
+        appInstallationId?: string | null;
+        deviceKey?: string | null;
+        macAddress?: string | null;
+        providerCodeId: string;
+        username: string;
     },
     config: ProviderAdminConfig
 ): Promise<DeviceRow | null> {
@@ -169,26 +199,17 @@ export async function findMatchingDevice(
         `SELECT *
          FROM devices
          WHERE
-            (
-                $1::text IS NOT NULL
-                AND app_installation_id = $1
-            )
-            OR (
-                $2::text IS NOT NULL
-                AND device_key = $2
-            )
-            OR (
-                $3::text IS NOT NULL
-                AND mac_address = $3
-            )
-         ORDER BY is_blocked DESC, updated_at DESC
+            provider_code_id = $4
+            AND username = $5
+            AND ${deviceIdentityClause()}
+         ORDER BY last_seen_at DESC NULLS LAST, created_at DESC
          LIMIT 1`,
         [
             input.appInstallationId ?? null,
             input.deviceKey ?? null,
             input.macAddress ?? null,
-            input.providerCode ?? null,
-            input.username ?? null,
+            input.providerCodeId,
+            input.username,
         ],
         config
     );
@@ -209,12 +230,12 @@ export async function upsertDeviceLogin(
     },
     config: ProviderAdminConfig
 ): Promise<DeviceRow> {
-    const existing = await findMatchingDevice(
+    const existing = await findDevicePlaylistLogin(
         {
             appInstallationId: input.appInstallationId,
             deviceKey: input.deviceKey,
             macAddress: input.macAddress,
-            providerCode: input.providerCode.code,
+            providerCodeId: input.providerCode.id,
             username: input.username,
         },
         config

@@ -433,6 +433,10 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
                 ],
                 config
             );
+            if (!result.rows[0]) {
+                res.status(404).json({ error: 'Provider code not found' });
+                return;
+            }
             res.json({ item: result.rows[0] });
         })
     );
@@ -603,6 +607,10 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
                 [req.params['id'], body.is_blocked],
                 config
             );
+            if (!result.rows[0]) {
+                res.status(404).json({ error: 'Device not found' });
+                return;
+            }
             res.json({ item: result.rows[0] });
         })
     );

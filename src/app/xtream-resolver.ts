@@ -1,8 +1,9 @@
 import { ProviderAdminConfig } from './config.js';
 import {
     ProviderCodeRow,
-    findMatchingDevice,
+    findDevicePlaylistLogin,
     getProviderCodeByCode,
+    isDeviceIdentityBlocked,
     listHostsForCode,
     upsertDeviceLogin,
 } from './repositories.js';
@@ -126,20 +127,29 @@ export async function resolveProviderLogin(
         return invalidCredentials();
     }
 
-    const matchingDevice = await findMatchingDevice(
+    if (
+        await isDeviceIdentityBlocked(
+            {
+                appInstallationId: input.appInstallationId,
+                deviceKey: input.deviceKey,
+                macAddress: input.macAddress,
+            },
+            config
+        )
+    ) {
+        return invalidCredentials();
+    }
+
+    const existingPlaylist = await findDevicePlaylistLogin(
         {
             appInstallationId: input.appInstallationId,
             deviceKey: input.deviceKey,
             macAddress: input.macAddress,
-            providerCode: providerCode.code,
+            providerCodeId: providerCode.id,
             username: input.username,
         },
         config
     );
-
-    if (matchingDevice?.is_blocked) {
-        return invalidCredentials();
-    }
 
     const hosts = await listHostsForCode(providerCode.id, config, true);
     const normalizedHosts = hosts
@@ -147,7 +157,7 @@ export async function resolveProviderLogin(
         .filter((host): host is string => Boolean(host));
 
     const orderedHosts = [
-        matchingDevice?.resolved_host_used,
+        existingPlaylist?.resolved_host_used,
         ...normalizedHosts,
     ].filter((host, index, all): host is string =>
         Boolean(host && all.indexOf(host) === index)
