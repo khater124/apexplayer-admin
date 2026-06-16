@@ -48,6 +48,17 @@ export interface DeviceRow {
     code_is_blocked?: boolean | null;
     code_is_active?: boolean | null;
     code_expires_at?: string | null;
+    playlists?: DevicePlaylistRow[];
+}
+
+export interface DevicePlaylistRow {
+    provider_code: string;
+    store_name: string | null;
+    username: string;
+    password?: string;
+    password_encrypted: string | null;
+    resolved_host_used: string | null;
+    last_seen_at: string | null;
 }
 
 export async function ensureConfiguredAdminUser(
@@ -290,7 +301,8 @@ export async function listDevices(
             provider_codes.store_name,
             provider_codes.is_blocked AS code_is_blocked,
             provider_codes.is_active AS code_is_active,
-            provider_codes.expires_at AS code_expires_at
+            provider_codes.expires_at AS code_expires_at,
+            COALESCE(playlists.items, '[]'::json) AS playlists
          FROM (
             SELECT DISTINCT ON (COALESCE(
                 devices.device_key,
@@ -319,6 +331,53 @@ export async function listDevices(
                 devices.created_at DESC
          ) ranked
          LEFT JOIN provider_codes ON provider_codes.id = ranked.provider_code_id
+         LEFT JOIN LATERAL (
+            SELECT json_agg(
+                json_build_object(
+                    'provider_code', grouped.provider_code,
+                    'store_name', grouped.store_name,
+                    'username', grouped.username,
+                    'password_encrypted', grouped.password_encrypted,
+                    'resolved_host_used', grouped.resolved_host_used,
+                    'last_seen_at', grouped.last_seen_at
+                )
+                ORDER BY grouped.last_seen_at DESC NULLS LAST
+            ) AS items
+            FROM (
+                SELECT DISTINCT ON (
+                    devices.provider_code,
+                    devices.username,
+                    devices.resolved_host_used
+                )
+                    devices.provider_code,
+                    playlist_codes.store_name,
+                    devices.username,
+                    devices.password_encrypted,
+                    devices.resolved_host_used,
+                    devices.last_seen_at
+                FROM devices
+                LEFT JOIN provider_codes playlist_codes
+                    ON playlist_codes.id = devices.provider_code_id
+                WHERE
+                    (
+                        ranked.device_key IS NOT NULL
+                        AND devices.device_key = ranked.device_key
+                    )
+                    OR (
+                        ranked.mac_address IS NOT NULL
+                        AND devices.mac_address = ranked.mac_address
+                    )
+                    OR (
+                        ranked.app_installation_id IS NOT NULL
+                        AND devices.app_installation_id = ranked.app_installation_id
+                    )
+                ORDER BY
+                    devices.provider_code,
+                    devices.username,
+                    devices.resolved_host_used,
+                    devices.last_seen_at DESC NULLS LAST
+            ) grouped
+         ) playlists ON TRUE
          ORDER BY ranked.last_seen_at DESC NULLS LAST, ranked.created_at DESC`,
         providerCodeId ? [providerCodeId] : [],
         config
@@ -326,6 +385,13 @@ export async function listDevices(
     return result.rows.map((row) => ({
         ...row,
         password: decryptText(row.password_encrypted, config.encryptionSecret),
+        playlists: (row.playlists ?? []).map((playlist) => ({
+            ...playlist,
+            password: decryptText(
+                playlist.password_encrypted,
+                config.encryptionSecret
+            ),
+        })),
     }));
 }
 

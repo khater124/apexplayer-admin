@@ -99,6 +99,13 @@ export function renderAdminPage(): string {
             background: rgba(24,34,50,.76);
             font-size: 12px;
         }
+        .device-playlists { display: grid; gap: 10px; min-width: 280px; }
+        .device-playlist {
+            border: 1px solid rgba(153,164,184,.22);
+            border-radius: 7px;
+            background: rgba(8,12,18,.42);
+            padding: 9px 10px;
+        }
         .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
         .summary {
             display: grid;
@@ -316,13 +323,9 @@ export function renderAdminPage(): string {
                 $(target).innerHTML = empty('No devices have logged in yet.');
                 return;
             }
-            $(target).innerHTML = '<table><thead><tr><th>Code</th><th>Store</th><th>Username</th><th>Password</th><th>Resolved Host</th><th>Device Key</th><th>MAC</th><th>Install ID</th><th>Version</th><th>IP</th><th>Last Seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+            $(target).innerHTML = '<table><thead><tr><th>Playlists</th><th>Device Key</th><th>MAC</th><th>Install ID</th><th>Version</th><th>IP</th><th>Last Seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 items.map((device) => '<tr>' +
-                    '<td class="mono">' + esc(device.provider_code) + '</td>' +
-                    '<td>' + esc(device.store_name || '') + '</td>' +
-                    '<td class="mono">' + esc(device.username) + '</td>' +
-                    '<td class="mono">' + esc(device.password || '') + '</td>' +
-                    '<td class="mono">' + esc(device.resolved_host_used || '') + '</td>' +
+                    '<td>' + renderDevicePlaylists(device) + '</td>' +
                     '<td class="mono">' + esc(device.device_key || '') + '</td>' +
                     '<td class="mono">' + esc(device.mac_address || '') + '</td>' +
                     '<td class="mono">' + esc(device.app_installation_id || '') + '</td>' +
@@ -335,6 +338,27 @@ export function renderAdminPage(): string {
                         '<button class="danger" data-action="delete-device" data-id="' + esc(device.id) + '">Delete</button>' +
                     '</td>' +
                 '</tr>').join('') + '</tbody></table>';
+        }
+
+        function renderDevicePlaylists(device) {
+            const playlists = Array.isArray(device.playlists) && device.playlists.length
+                ? device.playlists
+                : [{
+                    provider_code: device.provider_code,
+                    store_name: device.store_name,
+                    username: device.username,
+                    password: device.password,
+                    resolved_host_used: device.resolved_host_used
+                }];
+            return '<div class="device-playlists">' + playlists.map((playlist) =>
+                '<div class="device-playlist">' +
+                    '<strong class="mono">' + esc(playlist.provider_code || '') + '</strong>' +
+                    (playlist.store_name ? ' <span class="muted">' + esc(playlist.store_name) + '</span>' : '') +
+                    '<div class="mono">User: ' + esc(playlist.username || '') + '</div>' +
+                    '<div class="mono">Pass: ' + esc(playlist.password || '') + '</div>' +
+                    '<div class="mono muted">' + esc(playlist.resolved_host_used || '') + '</div>' +
+                '</div>'
+            ).join('') + '</div>';
         }
 
         async function loadCodeDetails(id) {
