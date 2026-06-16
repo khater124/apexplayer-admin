@@ -372,9 +372,8 @@ export function renderAdminPage(): string {
             $('#hostsTable').innerHTML = '<table><thead><tr><th>Order</th><th>Host URL</th><th>Actions</th></tr></thead><tbody>' +
                 state.hosts.map((host, index) => '<tr>' +
                     '<td><span class="host-index">Host ' + esc(index + 1) + '</span></td>' +
-                    '<td><input class="mono" data-host-field="host_url" data-id="' + esc(host.id) + '" value="' + esc(host.host_url) + '"></td>' +
+                    '<td class="mono">' + esc(host.host_url) + '</td>' +
                     '<td class="actions">' +
-                        '<button data-action="save-host" data-id="' + esc(host.id) + '">Save</button>' +
                         '<button class="danger" data-action="delete-host" data-id="' + esc(host.id) + '">Delete</button>' +
                     '</td>' +
                 '</tr>').join('') + '</tbody></table>';
@@ -471,12 +470,6 @@ export function renderAdminPage(): string {
                     $('#codeDetails').classList.add('hidden');
                     await refreshAll();
                     showToast('Provider code deleted');
-                }
-                if (action === 'save-host') {
-                    const hostUrl = document.querySelector('[data-host-field="host_url"][data-id="' + id + '"]').value;
-                    await api('/admin/api/hosts/' + id, { method: 'PATCH', body: JSON.stringify({ host_url: hostUrl }) });
-                    await loadCodeDetails(state.selectedCodeId);
-                    showToast('Host saved');
                 }
                 if (action === 'delete-host' && confirm('Delete this host?')) {
                     await api('/admin/api/hosts/' + id, { method: 'DELETE' });
