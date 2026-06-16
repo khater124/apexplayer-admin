@@ -8,34 +8,44 @@ export function renderAdminPage(): string {
     <style>
         :root {
             color-scheme: dark;
-            --bg: #0d1117;
-            --panel: #151a23;
-            --panel-2: #1d2430;
+            --bg: #080c12;
+            --panel: #111821;
+            --panel-2: #182232;
             --text: #f5f7fb;
             --muted: #99a4b8;
             --line: #2b3443;
             --accent: #69a7ff;
+            --accent-strong: #2f88ff;
             --danger: #ff6b6b;
             --ok: #55d187;
+            --warn: #ffd166;
+            --shadow: 0 18px 45px rgba(0, 0, 0, .22);
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             color: var(--text);
-            background: var(--bg);
+            background:
+                radial-gradient(circle at 20% 0%, rgba(47,136,255,.16), transparent 34rem),
+                linear-gradient(180deg, #0b111a 0, var(--bg) 18rem);
+            min-height: 100vh;
         }
         header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 18px 24px;
+            padding: 18px 30px;
             border-bottom: 1px solid var(--line);
-            background: #10151d;
+            background: rgba(9, 14, 21, .86);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 5;
         }
-        main { padding: 24px; }
+        main { padding: 28px 30px 46px; }
         h1, h2, h3 { margin: 0; letter-spacing: 0; }
-        h1 { font-size: 20px; }
+        h1 { font-size: 22px; }
         h2 { font-size: 18px; margin-bottom: 14px; }
         h3 { font-size: 15px; margin: 18px 0 10px; }
         .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
@@ -47,8 +57,9 @@ export function renderAdminPage(): string {
             padding: 9px 12px;
             cursor: pointer;
         }
-        .tab.active, button.primary { border-color: var(--accent); background: #183355; }
-        button.danger { border-color: var(--danger); color: #ffdede; }
+        .tab.active, button.primary { border-color: var(--accent); background: #15375d; }
+        button:hover:not(:disabled) { border-color: #7baef2; transform: translateY(-1px); }
+        button.danger { border-color: rgba(255,107,107,.72); color: #ffdede; }
         button:disabled { opacity: .45; cursor: not-allowed; }
         input, textarea, select {
             width: 100%;
@@ -58,25 +69,47 @@ export function renderAdminPage(): string {
             color: var(--text);
             padding: 9px 10px;
         }
+        input:focus, textarea:focus, select:focus {
+            outline: 2px solid rgba(105,167,255,.22);
+            border-color: var(--accent);
+        }
         textarea { min-height: 70px; resize: vertical; }
         label { display: grid; gap: 6px; color: var(--muted); }
         .card {
-            background: var(--panel);
+            background: rgba(17,24,33,.92);
             border: 1px solid var(--line);
             border-radius: 8px;
-            padding: 16px;
+            padding: 20px;
             margin-bottom: 16px;
+            box-shadow: var(--shadow);
         }
         .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .metric {
+            border: 1px solid var(--line);
+            background: rgba(17, 24, 33, .78);
+            border-radius: 8px;
+            padding: 14px;
+        }
+        .metric span { color: var(--muted); font-size: 12px; display: block; }
+        .metric strong { display: block; font-size: 24px; margin-top: 3px; }
         table { width: 100%; border-collapse: collapse; overflow: hidden; }
-        th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; vertical-align: top; }
+        th, td { border-bottom: 1px solid var(--line); padding: 11px 12px; text-align: left; vertical-align: top; }
         th { color: var(--muted); font-weight: 600; background: #111720; position: sticky; top: 0; }
+        tr:hover td { background: rgba(105, 167, 255, .045); }
         .table-wrap { max-height: 56vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
         .muted { color: var(--muted); }
         .ok { color: var(--ok); }
         .bad { color: var(--danger); }
+        .warn { color: var(--warn); }
         .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; word-break: break-all; }
         .hidden { display: none !important; }
         .login {
@@ -84,10 +117,32 @@ export function renderAdminPage(): string {
             margin: 12vh auto;
         }
         .notice { min-height: 20px; color: var(--muted); margin: 10px 0; }
+        .empty {
+            color: var(--muted);
+            padding: 24px;
+            text-align: center;
+        }
+        .toast {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            z-index: 10;
+            min-width: min(420px, calc(100vw - 48px));
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #111821;
+            color: var(--text);
+            box-shadow: var(--shadow);
+            padding: 13px 14px;
+        }
+        .toast.ok { border-color: rgba(85,209,135,.55); }
+        .toast.bad { border-color: rgba(255,107,107,.62); }
+        .toast strong { display: block; margin-bottom: 2px; }
         @media (max-width: 1000px) {
-            .grid, .grid.two { grid-template-columns: 1fr; }
+            .grid, .grid.two, .summary { grid-template-columns: 1fr; }
             main { padding: 14px; }
             th, td { min-width: 140px; }
+            header { padding: 16px 14px; }
         }
     </style>
 </head>
@@ -110,9 +165,18 @@ export function renderAdminPage(): string {
             </form>
         </section>
         <section id="appView" class="hidden">
-            <div class="tabs">
-                <button class="tab active" data-tab="codes">Provider Codes</button>
-                <button class="tab" data-tab="devices">Devices</button>
+            <div class="toolbar">
+                <div class="tabs">
+                    <button class="tab active" data-tab="codes">Provider Codes</button>
+                    <button class="tab" data-tab="devices">Devices</button>
+                </div>
+                <button id="refreshButton">Refresh</button>
+            </div>
+            <div class="summary">
+                <div class="metric"><span>Provider Codes</span><strong id="metricCodes">0</strong></div>
+                <div class="metric"><span>Active Codes</span><strong id="metricActiveCodes">0</strong></div>
+                <div class="metric"><span>Devices</span><strong id="metricDevices">0</strong></div>
+                <div class="metric"><span>Blocked Devices</span><strong id="metricBlockedDevices">0</strong></div>
             </div>
             <section id="codesTab">
                 <div class="card">
@@ -140,19 +204,42 @@ export function renderAdminPage(): string {
         </section>
     </main>
     <script>
-        const state = { codes: [], devices: [], selectedCodeId: null, hosts: [], codeDevices: [] };
+        const state = { codes: [], devices: [], selectedCodeId: null, hosts: [], codeDevices: [], busy: false };
         const $ = (selector) => document.querySelector(selector);
-        const api = async (url, options = {}) => {
-            const response = await fetch(url, {
-                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-                credentials: 'same-origin',
-                ...options
+        const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+        const showToast = (title, message = '', tone = 'ok') => {
+            document.querySelectorAll('.toast').forEach((toast) => toast.remove());
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + tone;
+            toast.innerHTML = '<strong>' + esc(title) + '</strong>' + (message ? '<span>' + esc(message) + '</span>' : '');
+            document.body.appendChild(toast);
+            window.setTimeout(() => toast.remove(), tone === 'bad' ? 5200 : 2600);
+        };
+        const setBusy = (busy) => {
+            state.busy = busy;
+            $$('button, input, textarea, select').forEach((el) => {
+                if (el.id !== 'logoutButton') el.disabled = busy;
             });
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.error || 'Request failed');
+            $('#sessionLabel').textContent = busy ? 'Working...' : ($('#appView').classList.contains('hidden') ? '' : 'Signed in');
+        };
+        const api = async (url, options = {}) => {
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+                    credentials: 'same-origin',
+                    ...options
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || 'Request failed');
+                }
+                return response.json();
+            } catch (error) {
+                if (error instanceof TypeError) {
+                    throw new Error('Network error. Check the Railway deployment and try again.');
+                }
+                throw error;
             }
-            return response.json();
         };
         const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -161,6 +248,14 @@ export function renderAdminPage(): string {
         const boolText = (ok) => ok ? '<span class="ok">Active</span>' : '<span class="bad">Blocked</span>';
         const formData = (form) => Object.fromEntries(new FormData(form).entries());
         const isoOrNull = (value) => value ? new Date(value).toISOString() : null;
+        const empty = (message) => '<div class="empty">' + esc(message) + '</div>';
+
+        function updateMetrics() {
+            $('#metricCodes').textContent = state.codes.length;
+            $('#metricActiveCodes').textContent = state.codes.filter((code) => code.is_active && !code.is_blocked).length;
+            $('#metricDevices').textContent = state.devices.length;
+            $('#metricBlockedDevices').textContent = state.devices.filter((device) => device.is_blocked).length;
+        }
 
         async function refreshSession() {
             const session = await api('/admin/api/session').catch(() => ({ authenticated: false }));
@@ -178,12 +273,17 @@ export function renderAdminPage(): string {
             ]);
             state.codes = codes.items;
             state.devices = devices.items;
+            updateMetrics();
             renderCodes();
             renderDevices();
             if (state.selectedCodeId) await loadCodeDetails(state.selectedCodeId);
         }
 
         function renderCodes() {
+            if (state.codes.length === 0) {
+                $('#codesTable').innerHTML = empty('No provider codes yet. Create code 557, then add one or more hidden Xtream hosts.');
+                return;
+            }
             $('#codesTable').innerHTML = '<table><thead><tr><th>Code</th><th>Store</th><th>Status</th><th>Expires</th><th>Devices</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
                 state.codes.map((code) => '<tr>' +
                     '<td class="mono">' + esc(code.code) + '</td>' +
@@ -201,6 +301,10 @@ export function renderAdminPage(): string {
         }
 
         function renderDevices(target = '#devicesTable', items = state.devices) {
+            if (items.length === 0) {
+                $(target).innerHTML = empty('No devices have logged in yet.');
+                return;
+            }
             $(target).innerHTML = '<table><thead><tr><th>Code</th><th>Store</th><th>Username</th><th>Password</th><th>Resolved Host</th><th>Device Key</th><th>MAC</th><th>Install ID</th><th>Version</th><th>IP</th><th>Last Seen</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 items.map((device) => '<tr>' +
                     '<td class="mono">' + esc(device.provider_code) + '</td>' +
@@ -260,6 +364,10 @@ export function renderAdminPage(): string {
         }
 
         function renderHosts() {
+            if (state.hosts.length === 0) {
+                $('#hostsTable').innerHTML = empty('No hosts for this provider code yet.');
+                return;
+            }
             $('#hostsTable').innerHTML = '<table><thead><tr><th>Host URL</th><th>Priority</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
                 state.hosts.map((host) => '<tr>' +
                     '<td class="mono">' + esc(host.host_url) + '</td>' +
@@ -277,11 +385,14 @@ export function renderAdminPage(): string {
         document.addEventListener('submit', async (event) => {
             event.preventDefault();
             const form = event.target;
+            if (state.busy) return;
+            setBusy(true);
             try {
                 if (form.id === 'loginForm') {
                     await api('/admin/api/login', { method: 'POST', body: JSON.stringify(formData(form)) });
                     form.reset();
                     await refreshSession();
+                    showToast('Signed in');
                 }
                 if (form.id === 'codeForm') {
                     const data = formData(form);
@@ -289,6 +400,7 @@ export function renderAdminPage(): string {
                     await api('/admin/api/provider-codes', { method: 'POST', body: JSON.stringify(data) });
                     form.reset();
                     await refreshAll();
+                    showToast('Provider code created');
                 }
                 if (form.id === 'editCodeForm') {
                     const data = formData(form);
@@ -297,6 +409,7 @@ export function renderAdminPage(): string {
                     data.is_blocked = data.is_blocked === 'true';
                     await api('/admin/api/provider-codes/' + state.selectedCodeId, { method: 'PATCH', body: JSON.stringify(data) });
                     await refreshAll();
+                    showToast('Provider code saved');
                 }
                 if (form.id === 'hostForm') {
                     const data = formData(form);
@@ -304,16 +417,20 @@ export function renderAdminPage(): string {
                     await api('/admin/api/provider-codes/' + state.selectedCodeId + '/hosts', { method: 'POST', body: JSON.stringify(data) });
                     form.reset();
                     await loadCodeDetails(state.selectedCodeId);
+                    showToast('Host added');
                 }
             } catch (error) {
                 $('#loginNotice').textContent = error.message;
-                alert(error.message);
+                showToast('Action failed', error.message, 'bad');
+            } finally {
+                setBusy(false);
             }
         });
 
         document.addEventListener('click', async (event) => {
             const button = event.target.closest('button');
             if (!button) return;
+            if (state.busy && button.id !== 'logoutButton') return;
             const action = button.dataset.action;
             const id = button.dataset.id;
             try {
@@ -322,52 +439,72 @@ export function renderAdminPage(): string {
                     $('#codesTab').classList.toggle('hidden', button.dataset.tab !== 'codes');
                     $('#devicesTab').classList.toggle('hidden', button.dataset.tab !== 'devices');
                 }
+                if (button.id === 'refreshButton') {
+                    setBusy(true);
+                    await refreshAll();
+                    showToast('Dashboard refreshed');
+                    return;
+                }
                 if (button.id === 'logoutButton') {
+                    setBusy(true);
                     await api('/admin/api/logout', { method: 'POST', body: '{}' });
                     await refreshSession();
+                    showToast('Signed out');
+                    return;
                 }
+                if (!action) return;
+                setBusy(true);
                 if (action === 'details') await loadCodeDetails(id);
                 if (action === 'toggle-code') {
                     const code = state.codes.find((item) => item.id === id);
                     await api('/admin/api/provider-codes/' + id, { method: 'PATCH', body: JSON.stringify({ is_blocked: !code.is_blocked }) });
                     await refreshAll();
+                    showToast(code.is_blocked ? 'Provider code unblocked' : 'Provider code blocked');
                 }
                 if (action === 'delete-code' && confirm('Delete this provider code and its hosts?')) {
                     await api('/admin/api/provider-codes/' + id, { method: 'DELETE' });
                     state.selectedCodeId = null;
                     $('#codeDetails').classList.add('hidden');
                     await refreshAll();
+                    showToast('Provider code deleted');
                 }
                 if (action === 'save-host') {
                     const priority = document.querySelector('[data-host-field="priority"][data-id="' + id + '"]').value;
                     const notes = document.querySelector('[data-host-field="notes"][data-id="' + id + '"]').value;
                     await api('/admin/api/hosts/' + id, { method: 'PATCH', body: JSON.stringify({ priority: Number(priority), notes }) });
                     await loadCodeDetails(state.selectedCodeId);
+                    showToast('Host saved');
                 }
                 if (action === 'toggle-host') {
                     const host = state.hosts.find((item) => item.id === id);
                     await api('/admin/api/hosts/' + id, { method: 'PATCH', body: JSON.stringify({ is_active: !host.is_active }) });
                     await loadCodeDetails(state.selectedCodeId);
+                    showToast(host.is_active ? 'Host disabled' : 'Host enabled');
                 }
                 if (action === 'delete-host' && confirm('Delete this host?')) {
                     await api('/admin/api/hosts/' + id, { method: 'DELETE' });
                     await loadCodeDetails(state.selectedCodeId);
+                    showToast('Host deleted');
                 }
                 if (action === 'toggle-device') {
                     const device = state.devices.concat(state.codeDevices).find((item) => item.id === id);
                     await api('/admin/api/devices/' + id, { method: 'PATCH', body: JSON.stringify({ is_blocked: !device.is_blocked }) });
                     await refreshAll();
+                    showToast(device.is_blocked ? 'Device unblocked' : 'Device blocked');
                 }
                 if (action === 'delete-device' && confirm('Delete this device?')) {
                     await api('/admin/api/devices/' + id, { method: 'DELETE' });
                     await refreshAll();
+                    showToast('Device deleted');
                 }
             } catch (error) {
-                alert(error.message);
+                showToast('Action failed', error.message, 'bad');
+            } finally {
+                setBusy(false);
             }
         });
 
-        refreshSession();
+        refreshSession().catch((error) => showToast('Could not load admin panel', error.message, 'bad'));
     </script>
 </body>
 </html>`;

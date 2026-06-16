@@ -156,6 +156,39 @@ function isUuid(value: unknown): value is string {
     );
 }
 
+function getRequestErrorResponse(error: unknown): {
+    status: number;
+    message: string;
+} {
+    const pgError = error as { code?: string; constraint?: string };
+    if (pgError?.code === '23505') {
+        if (pgError.constraint?.includes('provider_codes_code')) {
+            return {
+                status: 409,
+                message: 'A provider code with this value already exists.',
+            };
+        }
+
+        if (pgError.constraint?.includes('provider_code_hosts')) {
+            return {
+                status: 409,
+                message: 'This host already exists for the selected provider code.',
+            };
+        }
+
+        return { status: 409, message: 'This record already exists.' };
+    }
+
+    if (pgError?.code === '23503') {
+        return {
+            status: 400,
+            message: 'The selected related record was not found.',
+        };
+    }
+
+    return { status: 500, message: 'Internal server error' };
+}
+
 export function createProviderAdminApp(config: ProviderAdminConfig) {
     const app = express();
     const publicLimiter = rateLimit({
@@ -578,8 +611,9 @@ export function createProviderAdminApp(config: ProviderAdminConfig) {
         (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
             const message =
                 error instanceof Error ? error.message : String(error);
+            const response = getRequestErrorResponse(error);
             console.error(`Provider admin request failed: ${message}`);
-            res.status(500).json({ error: 'Internal server error' });
+            res.status(response.status).json({ error: response.message });
         }
     );
 
